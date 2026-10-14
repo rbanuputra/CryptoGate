@@ -53,6 +53,16 @@ class Token extends Model
         return $this->hasMany(ManualInput::class);
     }
 
+    public function investmentPlans(): HasMany
+    {
+        return $this->hasMany(InvestmentPlan::class);
+    }
+
+    public function priceAlerts(): HasMany
+    {
+        return $this->hasMany(PriceAlert::class);
+    }
+
     public function watchlists(): BelongsToMany
     {
         return $this->belongsToMany(Watchlist::class, 'watchlist_tokens')
@@ -63,6 +73,16 @@ class Token extends Model
     public function latestMarketSnapshot()
     {
         return $this->hasOne(MarketSnapshot::class)->latestOfMany('date');
+    }
+
+    public function latestDefiMetric()
+    {
+        return $this->hasOne(DefiMetric::class)->latestOfMany('date');
+    }
+
+    public function latestHolderSnapshot()
+    {
+        return $this->hasOne(HolderSnapshot::class)->latestOfMany('date');
     }
 
     public function latestCompositeScore()

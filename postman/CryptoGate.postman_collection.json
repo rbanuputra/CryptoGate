@@ -1,0 +1,523 @@
+{
+	"info": {
+		"name": "CryptoGate API",
+		"description": "CryptoGate — Automated fundamental screening dashboard for crypto tokens.\n\nPhase 1 endpoints: Tokens, Watchlists, Screening, Settings, CoinGecko Search.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000/api"
+		}
+	],
+	"item": [
+		{
+			"name": "🔍 Search",
+			"item": [
+				{
+					"name": "Search CoinGecko",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/coingecko?q=ethereum",
+							"host": ["{{base_url}}"],
+							"path": ["search", "coingecko"],
+							"query": [
+								{
+									"key": "q",
+									"value": "ethereum",
+									"description": "Search query (min 2 chars)"
+								}
+							]
+						},
+						"description": "Search tokens on CoinGecko by name or symbol. Returns top 20 results with `already_added` flag."
+					}
+				}
+			]
+		},
+		{
+			"name": "🪙 Tokens",
+			"item": [
+				{
+					"name": "List Tokens",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tokens?per_page=25&sort=name&dir=asc",
+							"host": ["{{base_url}}"],
+							"path": ["tokens"],
+							"query": [
+								{
+									"key": "per_page",
+									"value": "25",
+									"description": "Items per page (default 25)"
+								},
+								{
+									"key": "sort",
+									"value": "name",
+									"description": "Sort by: name, symbol, chain, created_at"
+								},
+								{
+									"key": "dir",
+									"value": "asc",
+									"description": "Sort direction: asc or desc"
+								},
+								{
+									"key": "search",
+									"value": "eth",
+									"description": "Filter by name or symbol",
+									"disabled": true
+								},
+								{
+									"key": "chain",
+									"value": "ethereum",
+									"description": "Filter by chain",
+									"disabled": true
+								}
+							]
+						},
+						"description": "List all tokens with pagination. Includes latest market snapshot and composite score."
+					}
+				},
+				{
+					"name": "Add Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('token_id', jsonData.id);",
+									"    pm.environment.set('coingecko_id', jsonData.coingecko_id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"coingecko_id\": \"{{coingecko_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/tokens",
+							"host": ["{{base_url}}"],
+							"path": ["tokens"]
+						},
+						"description": "Add a new token by CoinGecko ID. Automatically fetches profile + market data from CoinGecko API.\n\nAuto-sets `token_id` env variable on success."
+					}
+				},
+				{
+					"name": "Get Token Detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tokens/{{token_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["tokens", "{{token_id}}"]
+						},
+						"description": "Get full token detail with latest market snapshot, composite score, and manual inputs."
+					}
+				},
+				{
+					"name": "Update Token",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_notes\": \"Blue chip, good for baseline comparison\",\n    \"description_id\": \"Platform smart contract terbesar\",\n    \"translation_source\": \"manual\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/tokens/{{token_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["tokens", "{{token_id}}"]
+						},
+						"description": "Update token notes, Indonesian description, or chain."
+					}
+				},
+				{
+					"name": "Refresh Market Data",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tokens/{{token_id}}/refresh",
+							"host": ["{{base_url}}"],
+							"path": ["tokens", "{{token_id}}", "refresh"]
+						},
+						"description": "Re-fetch market data and profile from CoinGecko for this token. Updates today's market snapshot."
+					}
+				},
+				{
+					"name": "Get Token Scores",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tokens/{{token_id}}/scores",
+							"host": ["{{base_url}}"],
+							"path": ["tokens", "{{token_id}}", "scores"]
+						},
+						"description": "Get gate scores and composite scores history for a token."
+					}
+				},
+				{
+					"name": "Delete Token",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/tokens/{{token_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["tokens", "{{token_id}}"]
+						},
+						"description": "Delete a token and all related data (cascades)."
+					}
+				}
+			]
+		},
+		{
+			"name": "📋 Watchlists",
+			"item": [
+				{
+					"name": "List Watchlists",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/watchlists",
+							"host": ["{{base_url}}"],
+							"path": ["watchlists"]
+						},
+						"description": "List all watchlists with token count."
+					}
+				},
+				{
+					"name": "Create Watchlist",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('watchlist_id', jsonData.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Bear Market Gems\",\n    \"description\": \"Tokens to watch during bear market\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/watchlists",
+							"host": ["{{base_url}}"],
+							"path": ["watchlists"]
+						},
+						"description": "Create a new watchlist.\n\nAuto-sets `watchlist_id` env variable on success."
+					}
+				},
+				{
+					"name": "Get Watchlist Detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/watchlists/{{watchlist_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["watchlists", "{{watchlist_id}}"]
+						},
+						"description": "Get watchlist with all tokens, their market snapshots, and composite scores."
+					}
+				},
+				{
+					"name": "Update Watchlist",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Bear Market Gems v2\",\n    \"description\": \"Updated description\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/watchlists/{{watchlist_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["watchlists", "{{watchlist_id}}"]
+						},
+						"description": "Update watchlist name or description."
+					}
+				},
+				{
+					"name": "Add Token to Watchlist",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token_id\": {{token_id}},\n    \"notes\": \"Blue chip baseline\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/watchlists/{{watchlist_id}}/tokens",
+							"host": ["{{base_url}}"],
+							"path": ["watchlists", "{{watchlist_id}}", "tokens"]
+						},
+						"description": "Add a token to a watchlist. Returns 409 if already added."
+					}
+				},
+				{
+					"name": "Remove Token from Watchlist",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/watchlists/{{watchlist_id}}/tokens/{{token_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["watchlists", "{{watchlist_id}}", "tokens", "{{token_id}}"]
+						},
+						"description": "Remove a token from a watchlist."
+					}
+				},
+				{
+					"name": "Delete Watchlist",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/watchlists/{{watchlist_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["watchlists", "{{watchlist_id}}"]
+						},
+						"description": "Delete a watchlist (tokens are NOT deleted, only the watchlist relation)."
+					}
+				}
+			]
+		},
+		{
+			"name": "🚀 Screening",
+			"item": [
+				{
+					"name": "Run Screening (by Watchlist)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"watchlist_id\": {{watchlist_id}}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/screening/run",
+							"host": ["{{base_url}}"],
+							"path": ["screening", "run"]
+						},
+						"description": "Run screening for all tokens in a watchlist. Fetches fresh market data from CoinGecko.\n\nScoring engine not yet implemented — currently only refreshes market data."
+					}
+				},
+				{
+					"name": "Run Screening (by Token IDs)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token_ids\": [{{token_id}}]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/screening/run",
+							"host": ["{{base_url}}"],
+							"path": ["screening", "run"]
+						},
+						"description": "Run screening for specific token IDs."
+					}
+				},
+				{
+					"name": "Run Screening (All Tokens)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/screening/run",
+							"host": ["{{base_url}}"],
+							"path": ["screening", "run"]
+						},
+						"description": "Run screening for ALL tokens in the database."
+					}
+				},
+				{
+					"name": "Get Screening Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/screening/status/some-run-id",
+							"host": ["{{base_url}}"],
+							"path": ["screening", "status", "some-run-id"]
+						},
+						"description": "Check status of a screening run. Currently synchronous — always returns completed."
+					}
+				}
+			]
+		},
+		{
+			"name": "⚙️ Settings",
+			"item": [
+				{
+					"name": "Get Gate Weights",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/settings/weights",
+							"host": ["{{base_url}}"],
+							"path": ["settings", "weights"]
+						},
+						"description": "Get current gate weights and momentum mode.\n\nDefaults: Gate 1 = 0.35, Gate 2 = 0.40, Gate 3 = 0.25, momentum = multiplier."
+					}
+				},
+				{
+					"name": "Update Gate Weights",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"weights\": {\n        \"gate1\": 0.35,\n        \"gate2\": 0.40,\n        \"gate3\": 0.25\n    },\n    \"momentum_mode\": \"multiplier\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/settings/weights",
+							"host": ["{{base_url}}"],
+							"path": ["settings", "weights"]
+						},
+						"description": "Update gate weights. Weights must sum to 1.0. Returns 422 if invalid.\n\nmomentum_mode: 'multiplier' or '4th_gate'."
+					}
+				},
+				{
+					"name": "Get Sectors",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/sectors",
+							"host": ["{{base_url}}"],
+							"path": ["sectors"]
+						},
+						"description": "Get all narrative sectors with their mapped CoinGecko categories."
+					}
+				}
+			]
+		}
+	]
+}

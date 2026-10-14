@@ -35,4 +35,22 @@ return [
         ],
     ],
 
+    'coingecko' => [
+        'base_url' => env('COINGECKO_BASE_URL', 'https://api.coingecko.com/api/v3'),
+        'api_key' => env('COINGECKO_API_KEY', ''),
+        'cache_ttl' => env('COINGECKO_CACHE_TTL', 900),
+    ],
+
+    'defillama' => [
+        'base_url' => env('DEFILLAMA_BASE_URL', 'https://api.llama.fi'),
+        'cache_ttl' => env('DEFILLAMA_CACHE_TTL', 3600),
+    ],
+
+    'etherscan' => [
+        'base_url' => env('ETHERSCAN_BASE_URL', 'https://api.etherscan.io/v2/api'),
+        'api_key' => env('ETHERSCAN_API_KEY', ''),
+        'cache_ttl' => env('ETHERSCAN_CACHE_TTL', 3600),
+    ],
+
+
 ];

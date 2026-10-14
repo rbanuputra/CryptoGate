@@ -1,8 +1,18 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
-use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
+Schedule::command('coins:discover --per-category=10')
+    ->dailyAt('02:00')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/discover.log'));
+
+Schedule::command('coins:score')
+    ->dailyAt('03:00')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/scoring.log'));
+
+Schedule::command('alerts:check --refresh')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/alerts.log'));
