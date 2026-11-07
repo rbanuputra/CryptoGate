@@ -53,9 +53,21 @@ export function buildServer(deps: ServerDeps): ServerHandle {
   app.use((_req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Content-Type");
+    res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    if (_req.method === "OPTIONS") return res.sendStatus(204);
     next();
   });
+
+  const apiSecret = process.env.API_SECRET;
+  if (apiSecret) {
+    app.use("/api", (req, res, next) => {
+      if (req.path === "/health") return next();
+      const token = req.headers.authorization?.replace("Bearer ", "");
+      if (token !== apiSecret) return res.status(401).json({ error: "unauthorized" });
+      next();
+    });
+    console.log("[server] API_SECRET set — agent API is protected.");
+  }
 
   app.get("/api/health", (_req, res) => res.json({ ok: true, ts: Date.now() }));
   app.get("/api/status", (_req, res) => res.json(deps.status()));

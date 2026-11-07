@@ -14,9 +14,16 @@ import type {
 } from "@cryptogate/shared";
 
 export const AGENT_URL = process.env.NEXT_PUBLIC_AGENT_URL ?? "http://localhost:4000";
+const API_SECRET = process.env.NEXT_PUBLIC_API_SECRET ?? "";
+
+function authHeaders(): HeadersInit {
+  const h: Record<string, string> = {};
+  if (API_SECRET) h["Authorization"] = `Bearer ${API_SECRET}`;
+  return h;
+}
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${AGENT_URL}${path}`, { cache: "no-store" });
+  const res = await fetch(`${AGENT_URL}${path}`, { cache: "no-store", headers: authHeaders() });
   if (!res.ok) throw new Error(`${path} HTTP ${res.status}`);
   return res.json() as Promise<T>;
 }
@@ -33,22 +40,22 @@ export const api = {
   config: () => get<AgentConfigDto>("/api/config"),
   async putConfig(patch: Partial<AgentConfigDto>): Promise<AgentConfigDto> {
     const res = await fetch(`${AGENT_URL}/api/config`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+      method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(patch),
     });
     if (!res.ok) throw new Error(`config HTTP ${res.status}`);
     return res.json();
   },
   async control(action: AgentControlAction) {
-    const res = await fetch(`${AGENT_URL}/api/agent/${action}`, { method: "POST" });
+    const res = await fetch(`${AGENT_URL}/api/agent/${action}`, { method: "POST", headers: authHeaders() });
     return res.json();
   },
   async closePosition(symbol: string) {
-    const res = await fetch(`${AGENT_URL}/api/position/${symbol}/close`, { method: "POST" });
+    const res = await fetch(`${AGENT_URL}/api/position/${symbol}/close`, { method: "POST", headers: authHeaders() });
     return res.json();
   },
   async runBacktest(req: BacktestRequestDto): Promise<BacktestResultDto> {
     const res = await fetch(`${AGENT_URL}/api/backtest/run`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req),
+      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(req),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));

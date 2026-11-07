@@ -9,7 +9,7 @@ regime, and activates the most suitable strategies from a pool of 6.
 > The project is being rebuilt as a TypeScript monorepo per
 > `liquidx-ai-agent-prd.md`.
 
-## Status ✅ (43 tests passing · dashboard builds · 9 routes)
+## Status ✅ (43 tests passing · dashboard builds · 11 routes)
 
 **Increment 1 — foundation + first vertical slice:**
 - **Monorepo** — Turborepo + npm workspaces (`packages/shared`, `apps/agent`, `apps/web`)
@@ -97,7 +97,17 @@ fill → journal + notify).
 - **Nav** — 8 links: Overview, Charts, Screener, Trades, Strategies, Signals, Backtest,
   Settings
 
-Remaining: NextAuth login. See the PRD's phase plan.
+**Increment 9 — authentication (Phase 7):**
+- **NextAuth 4** — Credentials provider with env-based login (`ADMIN_USER` /
+  `ADMIN_PASS`, default admin/admin), JWT sessions (24h), custom `/login` page
+- **Dashboard protection** — Next.js middleware redirects unauthenticated users to
+  `/login`; SessionProvider wraps the app; nav shows username + logout button
+- **Agent API protection** — optional `API_SECRET` bearer token; when set, all
+  `/api/*` endpoints (except `/api/health`) require the token. The dashboard sends
+  it automatically via `NEXT_PUBLIC_API_SECRET`
+- **Routes** — 11 total: 8 dashboard pages + login + auth API + middleware
+
+All PRD phases implemented. The system is ready for testnet deployment.
 
 ## Run the dashboard
 ```bash

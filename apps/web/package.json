@@ -12,6 +12,7 @@
   "dependencies": {
     "@cryptogate/shared": "*",
     "next": "14.2.18",
+    "next-auth": "^4.24.11",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "recharts": "^2.12.7",
