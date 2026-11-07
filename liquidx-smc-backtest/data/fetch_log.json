@@ -1,0 +1,163 @@
+{
+  "BTCUSDT_4h": {
+    "status": "skipped",
+    "reason": "bitget: bitget BTCUSDT 4h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "BTCUSDT_1d": {
+    "status": "skipped",
+    "reason": "bitget: bitget BTCUSDT 1d HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "_updated": "2026-11-07T09:54:45.508925+00:00",
+  "BTCUSDT_15m": {
+    "status": "skipped",
+    "reason": "bitget: HTTPSConnectionPool(host='api.bitget.com', port=443): Max retries exceeded with url: /api/v2/mix/market/history-candles?symbol=BTCUSDT&productType=USDT-FUTURES&granularity=15m&endTime=1794045280142&limit=200 (Caused by SSLError(SSLCertVerificationError(1, \"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'api.bitget.com'. (_ssl.c:1010)\")))"
+  },
+  "BTCUSDT_1h": {
+    "status": "skipped",
+    "reason": "bitget: bitget BTCUSDT 1h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "ETHUSDT_15m": {
+    "status": "skipped",
+    "reason": "bitget: bitget ETHUSDT 15m HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "ETHUSDT_1h": {
+    "status": "skipped",
+    "reason": "bitget: bitget ETHUSDT 1h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "ETHUSDT_4h": {
+    "status": "skipped",
+    "reason": "bitget: bitget ETHUSDT 4h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "ETHUSDT_1d": {
+    "status": "skipped",
+    "reason": "bitget: bitget ETHUSDT 1d HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "BNBUSDT_15m": {
+    "status": "skipped",
+    "reason": "bitget: bitget BNBUSDT 15m HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "BNBUSDT_1h": {
+    "status": "skipped",
+    "reason": "bitget: bitget BNBUSDT 1h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "BNBUSDT_4h": {
+    "status": "skipped",
+    "reason": "bitget: bitget BNBUSDT 4h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "BNBUSDT_1d": {
+    "status": "skipped",
+    "reason": "bitget: bitget BNBUSDT 1d HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "XRPUSDT_15m": {
+    "status": "skipped",
+    "reason": "bitget: bitget XRPUSDT 15m HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "XRPUSDT_1h": {
+    "status": "skipped",
+    "reason": "bitget: bitget XRPUSDT 1h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "XRPUSDT_4h": {
+    "status": "skipped",
+    "reason": "bitget: bitget XRPUSDT 4h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "XRPUSDT_1d": {
+    "status": "skipped",
+    "reason": "bitget: bitget XRPUSDT 1d HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "SOLUSDT_15m": {
+    "status": "skipped",
+    "reason": "bitget: bitget SOLUSDT 15m HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "SOLUSDT_1h": {
+    "status": "skipped",
+    "reason": "bitget: bitget SOLUSDT 1h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "SOLUSDT_4h": {
+    "status": "skipped",
+    "reason": "bitget: bitget SOLUSDT 4h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "SOLUSDT_1d": {
+    "status": "skipped",
+    "reason": "bitget: bitget SOLUSDT 1d HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "TRXUSDT_15m": {
+    "status": "skipped",
+    "reason": "bitget: bitget TRXUSDT 15m HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "TRXUSDT_1h": {
+    "status": "skipped",
+    "reason": "bitget: bitget TRXUSDT 1h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "TRXUSDT_4h": {
+    "status": "skipped",
+    "reason": "bitget: bitget TRXUSDT 4h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "TRXUSDT_1d": {
+    "status": "skipped",
+    "reason": "bitget: bitget TRXUSDT 1d HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "ZECUSDT_15m": {
+    "status": "skipped",
+    "reason": "bitget: bitget ZECUSDT 15m HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "ZECUSDT_1h": {
+    "status": "skipped",
+    "reason": "bitget: bitget ZECUSDT 1h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "ZECUSDT_4h": {
+    "status": "skipped",
+    "reason": "bitget: bitget ZECUSDT 4h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "ZECUSDT_1d": {
+    "status": "skipped",
+    "reason": "bitget: bitget ZECUSDT 1d HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "HYPEUSDT_15m": {
+    "status": "skipped",
+    "reason": "bitget: bitget HYPEUSDT 15m HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "HYPEUSDT_1h": {
+    "status": "skipped",
+    "reason": "bitget: bitget HYPEUSDT 1h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "HYPEUSDT_4h": {
+    "status": "skipped",
+    "reason": "bitget: bitget HYPEUSDT 4h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "HYPEUSDT_1d": {
+    "status": "skipped",
+    "reason": "bitget: bitget HYPEUSDT 1d HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "DOGEUSDT_15m": {
+    "status": "skipped",
+    "reason": "bitget: bitget DOGEUSDT 15m HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "DOGEUSDT_1h": {
+    "status": "skipped",
+    "reason": "bitget: bitget DOGEUSDT 1h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "DOGEUSDT_4h": {
+    "status": "skipped",
+    "reason": "bitget: bitget DOGEUSDT 4h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "DOGEUSDT_1d": {
+    "status": "skipped",
+    "reason": "bitget: bitget DOGEUSDT 1d HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "1000PEPEUSDT_15m": {
+    "status": "skipped",
+    "reason": "bitget: bitget 1000PEPEUSDT 15m HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "1000PEPEUSDT_1h": {
+    "status": "skipped",
+    "reason": "bitget: bitget 1000PEPEUSDT 1h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "1000PEPEUSDT_4h": {
+    "status": "skipped",
+    "reason": "bitget: bitget 1000PEPEUSDT 4h HTTP 403: {\"cloudflare\":\"block\"}"
+  },
+  "1000PEPEUSDT_1d": {
+    "status": "skipped",
+    "reason": "bitget: bitget 1000PEPEUSDT 1d HTTP 403: {\"cloudflare\":\"block\"}"
+  }
+}

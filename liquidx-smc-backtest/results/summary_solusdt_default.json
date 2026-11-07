@@ -1,0 +1,76 @@
+{
+  "symbol": "SOLUSDT",
+  "config_name": "default",
+  "timeframe": "15M+4H",
+  "total_trades": 1,
+  "win_rate": 1.0,
+  "profit_factor": 999.0,
+  "total_return_pct": 1.43,
+  "total_pnl": 142.83,
+  "max_drawdown_pct": 0.04,
+  "avg_rr": 0.7142,
+  "sharpe_ratio": 0.707,
+  "sortino_ratio": 0.0,
+  "avg_trade_duration_hours": 10.25,
+  "max_consecutive_wins": 1,
+  "max_consecutive_losses": 0,
+  "setup_breakdown": {
+    "OB": {
+      "trades": 0,
+      "wr": 0.0,
+      "pf": 0.0,
+      "pnl": 0
+    },
+    "FVG": {
+      "trades": 1,
+      "wr": 1.0,
+      "pf": 999.0,
+      "pnl": 142.83
+    }
+  },
+  "direction_breakdown": {
+    "long": {
+      "trades": 1,
+      "wr": 1.0,
+      "pnl": 142.83
+    },
+    "short": {
+      "trades": 0,
+      "wr": 0.0,
+      "pnl": 0
+    }
+  },
+  "exit_breakdown": {
+    "SL_BE": {
+      "count": 1,
+      "pnl": 142.83
+    }
+  },
+  "session_breakdown": {
+    "london": {
+      "trades": 1,
+      "wr": 1.0,
+      "pnl": 142.83
+    },
+    "new_york": {
+      "trades": 0,
+      "wr": 0.0,
+      "pnl": 0
+    }
+  },
+  "monthly_breakdown": {
+    "2023-03": {
+      "trades": 1,
+      "wr": 1.0,
+      "pnl": 142.83
+    }
+  },
+  "yearly_breakdown": {
+    "2023": {
+      "trades": 1,
+      "wr": 1.0,
+      "pnl": 142.83
+    }
+  },
+  "final_equity": 10142.83
+}

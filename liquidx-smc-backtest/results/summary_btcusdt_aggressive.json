@@ -1,0 +1,89 @@
+{
+  "symbol": "BTCUSDT",
+  "config_name": "aggressive",
+  "timeframe": "15M+4H",
+  "total_trades": 3,
+  "win_rate": 0.6667,
+  "profit_factor": 2.931,
+  "total_return_pct": 4.36,
+  "total_pnl": 435.59,
+  "max_drawdown_pct": 3.47,
+  "avg_rr": 0.7382,
+  "sharpe_ratio": 0.735,
+  "sortino_ratio": 0.1,
+  "avg_trade_duration_hours": 32.5,
+  "max_consecutive_wins": 1,
+  "max_consecutive_losses": 1,
+  "setup_breakdown": {
+    "OB": {
+      "trades": 1,
+      "wr": 1.0,
+      "pf": 999.0,
+      "pnl": 525.64
+    },
+    "FVG": {
+      "trades": 2,
+      "wr": 0.5,
+      "pf": 0.601,
+      "pnl": -90.04
+    }
+  },
+  "direction_breakdown": {
+    "long": {
+      "trades": 3,
+      "wr": 0.6667,
+      "pnl": 435.59
+    },
+    "short": {
+      "trades": 0,
+      "wr": 0.0,
+      "pnl": 0
+    }
+  },
+  "exit_breakdown": {
+    "TP2": {
+      "count": 1,
+      "pnl": 525.64
+    },
+    "SL": {
+      "count": 1,
+      "pnl": -225.58
+    },
+    "SL_BE": {
+      "count": 1,
+      "pnl": 135.54
+    }
+  },
+  "session_breakdown": {
+    "london": {
+      "trades": 2,
+      "wr": 0.5,
+      "pnl": 300.05
+    },
+    "new_york": {
+      "trades": 1,
+      "wr": 1.0,
+      "pnl": 135.54
+    }
+  },
+  "monthly_breakdown": {
+    "2023-03": {
+      "trades": 2,
+      "wr": 0.5,
+      "pnl": 300.05
+    },
+    "2023-07": {
+      "trades": 1,
+      "wr": 1.0,
+      "pnl": 135.54
+    }
+  },
+  "yearly_breakdown": {
+    "2023": {
+      "trades": 3,
+      "wr": 0.6667,
+      "pnl": 435.59
+    }
+  },
+  "final_equity": 10435.59
+}

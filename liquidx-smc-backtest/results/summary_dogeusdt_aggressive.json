@@ -1,0 +1,81 @@
+{
+  "symbol": "DOGEUSDT",
+  "config_name": "aggressive",
+  "timeframe": "15M+4H",
+  "total_trades": 2,
+  "win_rate": 0.0,
+  "profit_factor": 0.0,
+  "total_return_pct": -4.19,
+  "total_pnl": -419.17,
+  "max_drawdown_pct": 4.19,
+  "avg_rr": -1.0592,
+  "sharpe_ratio": -1.001,
+  "sortino_ratio": -2.261,
+  "avg_trade_duration_hours": 2.5,
+  "max_consecutive_wins": 0,
+  "max_consecutive_losses": 2,
+  "setup_breakdown": {
+    "OB": {
+      "trades": 0,
+      "wr": 0.0,
+      "pf": 0.0,
+      "pnl": 0
+    },
+    "FVG": {
+      "trades": 2,
+      "wr": 0.0,
+      "pf": 0.0,
+      "pnl": -419.17
+    }
+  },
+  "direction_breakdown": {
+    "long": {
+      "trades": 2,
+      "wr": 0.0,
+      "pnl": -419.17
+    },
+    "short": {
+      "trades": 0,
+      "wr": 0.0,
+      "pnl": 0
+    }
+  },
+  "exit_breakdown": {
+    "SL": {
+      "count": 2,
+      "pnl": -419.17
+    }
+  },
+  "session_breakdown": {
+    "london": {
+      "trades": 2,
+      "wr": 0.0,
+      "pnl": -419.17
+    },
+    "new_york": {
+      "trades": 0,
+      "wr": 0.0,
+      "pnl": 0
+    }
+  },
+  "monthly_breakdown": {
+    "2024-04": {
+      "trades": 1,
+      "wr": 0.0,
+      "pnl": -208.36
+    },
+    "2024-10": {
+      "trades": 1,
+      "wr": 0.0,
+      "pnl": -210.81
+    }
+  },
+  "yearly_breakdown": {
+    "2024": {
+      "trades": 2,
+      "wr": 0.0,
+      "pnl": -419.17
+    }
+  },
+  "final_equity": 9580.83
+}

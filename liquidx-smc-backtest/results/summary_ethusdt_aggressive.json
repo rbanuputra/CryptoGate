@@ -1,0 +1,76 @@
+{
+  "symbol": "ETHUSDT",
+  "config_name": "aggressive",
+  "timeframe": "15M+4H",
+  "total_trades": 1,
+  "win_rate": 1.0,
+  "profit_factor": 999.0,
+  "total_return_pct": 1.13,
+  "total_pnl": 112.75,
+  "max_drawdown_pct": 0.25,
+  "avg_rr": 0.5637,
+  "sharpe_ratio": 0.707,
+  "sortino_ratio": 0.0,
+  "avg_trade_duration_hours": 1.75,
+  "max_consecutive_wins": 1,
+  "max_consecutive_losses": 0,
+  "setup_breakdown": {
+    "OB": {
+      "trades": 1,
+      "wr": 1.0,
+      "pf": 999.0,
+      "pnl": 112.75
+    },
+    "FVG": {
+      "trades": 0,
+      "wr": 0.0,
+      "pf": 0.0,
+      "pnl": 0
+    }
+  },
+  "direction_breakdown": {
+    "long": {
+      "trades": 1,
+      "wr": 1.0,
+      "pnl": 112.75
+    },
+    "short": {
+      "trades": 0,
+      "wr": 0.0,
+      "pnl": 0
+    }
+  },
+  "exit_breakdown": {
+    "SL_BE": {
+      "count": 1,
+      "pnl": 112.75
+    }
+  },
+  "session_breakdown": {
+    "london": {
+      "trades": 1,
+      "wr": 1.0,
+      "pnl": 112.75
+    },
+    "new_york": {
+      "trades": 0,
+      "wr": 0.0,
+      "pnl": 0
+    }
+  },
+  "monthly_breakdown": {
+    "2024-09": {
+      "trades": 1,
+      "wr": 1.0,
+      "pnl": 112.75
+    }
+  },
+  "yearly_breakdown": {
+    "2024": {
+      "trades": 1,
+      "wr": 1.0,
+      "pnl": 112.75
+    }
+  },
+  "final_equity": 10112.75
+}
