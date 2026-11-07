@@ -13,7 +13,15 @@ import { SmcSweepStrategy } from "./strategies/smc-strategy.js";
 import { MomentumBreakoutStrategy } from "./strategies/momentum-breakout.js";
 import { MeanReversionStrategy } from "./strategies/mean-reversion.js";
 import { VwapBounceStrategy } from "./strategies/vwap-bounce.js";
+import { OiDivergenceStrategy } from "./strategies/oi-divergence.js";
+import { LiquidationFadeStrategy } from "./strategies/liquidation-fade.js";
 import type { Strategy } from "./strategies/base.js";
+import {
+  OrderFlowStore,
+  fetchOpenInterest,
+  fetchFundingRate,
+  fetchLongShortRatio,
+} from "./data/orderflow.js";
 import { aggregate, multiStrategyConfirm, type SignalHistoryEntry } from "./engine/aggregator.js";
 import { RiskManager, RISK_DEFAULT } from "./risk/manager.js";
 import { PositionManager } from "./execution/position-manager.js";
@@ -56,13 +64,35 @@ async function main() {
   const timeframes: Timeframe[] = ["15m", "4h"];
   const feed = new DataFeed(SYMBOLS, timeframes);
 
-  // Strategy registry. Strategies 4 (OI divergence) & 6 (liquidation fade) land next.
+  // Strategy registry — all 6 strategies implemented.
   const registry = new Map<StrategyName, Strategy>([
     ["smc_sweep", new SmcSweepStrategy()],
     ["momentum_breakout", new MomentumBreakoutStrategy()],
     ["mean_reversion", new MeanReversionStrategy()],
     ["vwap_bounce", new VwapBounceStrategy()],
+    ["oi_divergence", new OiDivergenceStrategy()],
+    ["liquidation_fade", new LiquidationFadeStrategy()],
   ]);
+
+  // Order-flow stores (OI/funding/LS ratio), polled every 5 min in LIVE mode.
+  const orderflow = new Map<string, OrderFlowStore>(SYMBOLS.map((s) => [s, new OrderFlowStore(s)]));
+  async function pollOrderFlow(): Promise<void> {
+    for (const symbol of SYMBOLS) {
+      const store = orderflow.get(symbol)!;
+      try {
+        const [oi, funding, ls] = await Promise.all([
+          fetchOpenInterest(symbol),
+          fetchFundingRate(symbol),
+          fetchLongShortRatio(symbol),
+        ]);
+        store.pushOi(oi, Date.now());
+        store.pushFunding(funding);
+        store.pushLsRatio(ls);
+      } catch (e) {
+        console.error(`[orderflow] ${symbol}:`, e instanceof Error ? e.message : e);
+      }
+    }
+  }
   const history: SignalHistoryEntry[] = [];
   const risk = new RiskManager(RISK_DEFAULT, START_EQUITY);
   const positions = new PositionManager();
@@ -86,6 +116,7 @@ async function main() {
       signalTtlMs: SIGNAL_TTL_MS,
       registry,
       history,
+      orderflow: orderflow.get(symbol)?.snapshot(),
       hasCorrelatedPosition: (sym, dir) => positions.openLike().some((p) => p.symbol !== sym && p.direction === dir),
     });
     if (history.length > 500) history.splice(0, history.length - 500);
@@ -122,6 +153,8 @@ async function main() {
   if (process.env.LIVE === "1") {
     console.log("[agent] bootstrapping historical data...");
     await feed.bootstrap();
+    await pollOrderFlow();
+    setInterval(() => void pollOrderFlow(), 5 * 60 * 1000);
     feed.connect();
     console.log("[agent] live feed connected.");
   } else {

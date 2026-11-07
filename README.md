@@ -9,7 +9,7 @@ regime, and activates the most suitable strategies from a pool of 6.
 > The project is being rebuilt as a TypeScript monorepo per
 > `liquidx-ai-agent-prd.md`.
 
-## Status ✅ (33 tests passing)
+## Status ✅ (36 tests passing)
 
 **Increment 1 — foundation + first vertical slice:**
 - **Monorepo** — Turborepo + npm workspaces (`packages/shared`, `apps/agent`, `apps/web`)
@@ -51,9 +51,18 @@ has a real pool to rank and multi-confirm across.
 - Wired into the agent loop: aggregate → risk gate → execute (paper by default,
   live when `LIVE=1` + API keys)
 
-Not yet built (next increments): strategies 4 & 6 (OI divergence, liquidation fade) +
-their order-flow data (Module 1B), user-data-stream fill detection, journaling to
-Postgres (Module 9), Telegram alerts, and dashboard pages 2–7. See the PRD's phase plan.
+**Increment 5 — order flow + strategies 4 & 6 (Phase 4):**
+- **Module 1B Order Flow** — `OrderFlowStore` rolling windows (OI / funding / L/S ratio)
+  + Binance REST fetchers, polled every 5 min in LIVE mode
+- **Strategy 4: OI Divergence** — new price extreme while OI declines, confirmed by a
+  funding or long/short extreme (reversal, wider stops)
+- **Strategy 6: Liquidation Cascade Fade** — fade the first reversal after an OI-crash
+  cascade shows exhaustion (RSI extreme + OI stabilising); half size
+- Order flow threaded through the aggregator → all **6 strategies** now registered
+
+Not yet built (next increments): user-data-stream fill detection + live equity/position
+updates, journaling to Postgres (Module 9), Telegram alerts (Module 9), and dashboard
+pages 2–7. See the PRD's phase plan.
 
 ## Layout
 ```

@@ -5,6 +5,7 @@ import type {
   StrategyName,
   Timeframe,
 } from "@cryptogate/shared";
+import type { OrderFlowSnapshot } from "../data/orderflow.js";
 
 export interface ScanContext {
   symbol: string;
@@ -14,6 +15,8 @@ export interface ScanContext {
   regime: RegimeResult;
   /** signal lifetime in ms */
   signalTtlMs: number;
+  /** order-flow snapshot (OI/funding/LS ratio); present only when polled */
+  orderflow?: OrderFlowSnapshot;
 }
 
 export interface Strategy {

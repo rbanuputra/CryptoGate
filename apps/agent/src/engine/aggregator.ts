@@ -5,6 +5,7 @@
  */
 import type { Candle, RegimeResult, Signal, StrategyName, Timeframe } from "@cryptogate/shared";
 import type { Strategy } from "../strategies/base.js";
+import type { OrderFlowSnapshot } from "../data/orderflow.js";
 import { getActiveStrategies, scoreSignal, type ScoreContext } from "./selector.js";
 
 export interface ScoredSignal {
@@ -32,6 +33,7 @@ export interface AggregatorInput {
   signalTtlMs: number;
   registry: Map<StrategyName, Strategy>;
   history: SignalHistoryEntry[];
+  orderflow?: OrderFlowSnapshot;
   /** optional contextual flags (default false) */
   isKeyLevel?: (price: number) => boolean;
   hasCorrelatedPosition?: (symbol: string, dir: Signal["direction"]) => boolean;
@@ -68,6 +70,7 @@ export function aggregate(input: AggregatorInput): ScoredSignal[] {
       htfTf: input.htfTf,
       regime: input.regime,
       signalTtlMs: input.signalTtlMs,
+      orderflow: input.orderflow,
     });
     raw.push(...signals);
   }
