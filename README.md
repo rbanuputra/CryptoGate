@@ -9,7 +9,7 @@ regime, and activates the most suitable strategies from a pool of 6.
 > The project is being rebuilt as a TypeScript monorepo per
 > `liquidx-ai-agent-prd.md`.
 
-## Status ✅ (43 tests passing)
+## Status ✅ (43 tests passing · dashboard builds)
 
 **Increment 1 — foundation + first vertical slice:**
 - **Monorepo** — Turborepo + npm workspaces (`packages/shared`, `apps/agent`, `apps/web`)
@@ -71,8 +71,27 @@ has a real pool to rank and multi-confirm across.
   templates (entry / TP1 / TP2 / SL / closed / circuit-breaker)
 
 The agent backend is now functional end-to-end in paper mode (signal → risk → execute →
-fill → journal + notify). Remaining: dashboard pages 2–7 (Phase 6–7), a live Prisma/Postgres
-wiring, and the backtest-lab API. See the PRD's phase plan.
+fill → journal + notify).
+
+**Increment 7 — dashboard (Phase 6–7):**
+- **Agent REST API** — `/api/status`, `/trades`, `/signals`, `/equity`, `/positions`,
+  `/regime`, `/screener`, `/strategies`, `/config` (GET/PUT), `/agent/:action`
+  (start/pause/stop/close_all), `/position/:symbol/close`; all served from live
+  in-memory state, plus Socket.io push
+- **Next.js dashboard** — dark-theme, nav + 6 pages: Overview (equity/positions/recent
+  trades, live), Coin Screener, Trade Journal (filterable + summary), Strategy Monitor,
+  Signal Log (live taken/rejected feed), Settings (controls + risk params + strategy
+  toggles, hot-reloaded via `PUT /api/config`)
+- Run-state (running/paused/stopped) + per-strategy toggles now gate live trading
+
+Remaining: live Prisma/Postgres wiring, Backtest Lab page + API, equity-curve & regime
+charts (lightweight-charts), and NextAuth login. See the PRD's phase plan.
+
+## Run the dashboard
+```bash
+npm run dev -w @cryptogate/agent     # API+WS on :4000 (LIVE=1 to trade)
+npm run dev -w @cryptogate/web        # dashboard on :3000
+```
 
 ## Layout
 ```

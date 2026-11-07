@@ -6,8 +6,22 @@
  * blocked (or no API keys yet), run the backtest CLI instead:
  *   npm run backtest -w @cryptogate/agent -- --symbol BTCUSDT
  */
-import type { StrategyName, Timeframe } from "@cryptogate/shared";
+import {
+  MarketRegime,
+  type StrategyName,
+  type Timeframe,
+  type AgentStatusDto,
+  type AgentConfigDto,
+  type AgentControlAction,
+  type AgentRunState,
+  type PositionView,
+  type StrategyStat,
+  type ScreenerDto,
+  type RegimeDto,
+  type MomentumScore,
+} from "@cryptogate/shared";
 import { DataFeed } from "./data/feed.js";
+import { calculateMomentumScore } from "./screener/momentum.js";
 import { detectRegime } from "./regime/detector.js";
 import { SmcSweepStrategy } from "./strategies/smc-strategy.js";
 import { MomentumBreakoutStrategy } from "./strategies/momentum-breakout.js";
@@ -41,7 +55,7 @@ import {
   BinanceFuturesClient,
   type ExchangeClient,
 } from "./execution/binance-client.js";
-import { buildServer, type AgentStatus } from "./server/index.js";
+import { buildServer, type ServerDeps } from "./server/index.js";
 
 const SYMBOLS = (process.env.SYMBOLS ?? "BTCUSDT,ETHUSDT,SOLUSDT").split(",");
 const PORT = Number(process.env.AGENT_PORT ?? 4000);
@@ -73,14 +87,8 @@ function buildNotifier(): Notifier {
 
 async function main() {
   const startedAt = Date.now();
-  const status: AgentStatus = {
-    status: "running",
-    uptimeMs: 0,
-    activeCoins: SYMBOLS,
-    startedAt,
-  };
-  const server = buildServer(() => ({ ...status, uptimeMs: Date.now() - startedAt }));
-  server.listen(PORT);
+  let runState: AgentRunState = "running";
+  const mode: "live" | "paper" = process.env.LIVE === "1" && process.env.BINANCE_API_KEY ? "live" : "paper";
 
   const timeframes: Timeframe[] = ["15m", "4h"];
   const feed = new DataFeed(SYMBOLS, timeframes);
@@ -122,18 +130,140 @@ async function main() {
   const notifier = buildNotifier();
   const tracker = new TradeTracker(START_EQUITY, positions, exchange, risk, journal, notifier);
 
+  // ---- live in-memory view state for the dashboard ----------------------
+  const config: AgentConfigDto = {
+    leverage: LEVERAGE,
+    riskPct: RISK_DEFAULT.riskPct,
+    maxDailyLossPct: RISK_DEFAULT.circuit.maxDailyLossPct,
+    maxConcurrentPositions: RISK_DEFAULT.maxConcurrentPositions,
+    minRiskReward: RISK_DEFAULT.minRiskReward,
+    symbols: SYMBOLS,
+    strategiesEnabled: Object.fromEntries([...registry.keys()].map((k) => [k, true])) as Record<StrategyName, boolean>,
+  };
+  const regimePerCoin = new Map<string, RegimeDto>();
+  const momentumByCoin = new Map<string, MomentumScore>();
+
+  function strategyStats(): StrategyStat[] {
+    return [...registry.keys()].map((strategy) => {
+      const trades = journal.trades.filter((t) => t.strategy === strategy);
+      const wins = trades.filter((t) => (t.pnlUsdt ?? 0) > 0);
+      const gp = wins.reduce((s, t) => s + (t.pnlUsdt ?? 0), 0);
+      const gl = -trades.filter((t) => (t.pnlUsdt ?? 0) < 0).reduce((s, t) => s + (t.pnlUsdt ?? 0), 0);
+      return {
+        strategy,
+        trades: trades.length,
+        winRate: trades.length ? Number((wins.length / trades.length).toFixed(4)) : 0,
+        profitFactor: gl > 0 ? Number((gp / gl).toFixed(3)) : gp > 0 ? 999 : 0,
+        avgR: trades.length ? Number((trades.reduce((s, t) => s + (t.rMultiple ?? 0), 0) / trades.length).toFixed(3)) : 0,
+        pnl: Number(trades.reduce((s, t) => s + (t.pnlUsdt ?? 0), 0).toFixed(2)),
+        enabled: config.strategiesEnabled[strategy] ?? true,
+      };
+    });
+  }
+  function positionViews(): PositionView[] {
+    return positions.list().filter((p) => p.status === "open").map((p) => ({
+      symbol: p.symbol, direction: p.direction, strategy: p.signal.strategy,
+      entryPrice: p.signal.entryPrice, quantity: p.size.quantity, notional: p.size.notional,
+      slPrice: p.slPrice, tp1Price: p.signal.takeProfit1, tp2Price: p.signal.takeProfit2,
+      tp1Hit: p.tp1Hit, openedAt: p.openedAt,
+    }));
+  }
+  function statusDto(): AgentStatusDto {
+    const snap = tracker.snapshot();
+    return {
+      status: runState, mode, uptimeMs: Date.now() - startedAt, activeCoins: config.symbols,
+      equity: Number(snap.equity.toFixed(2)), peakEquity: Number(snap.peakEquity.toFixed(2)),
+      openPositions: snap.openPositions,
+    };
+  }
+
+  const deps: ServerDeps = {
+    status: statusDto,
+    trades: () => {
+      const trades = journal.trades;
+      const wins = trades.filter((t) => (t.pnlUsdt ?? 0) > 0);
+      const gp = wins.reduce((s, t) => s + (t.pnlUsdt ?? 0), 0);
+      const gl = -trades.filter((t) => (t.pnlUsdt ?? 0) < 0).reduce((s, t) => s + (t.pnlUsdt ?? 0), 0);
+      return {
+        trades: [...trades].reverse(),
+        summary: {
+          total: trades.length,
+          winRate: trades.length ? Number((wins.length / trades.length).toFixed(4)) : 0,
+          profitFactor: gl > 0 ? Number((gp / gl).toFixed(3)) : gp > 0 ? 999 : 0,
+          avgR: trades.length ? Number((trades.reduce((s, t) => s + (t.rMultiple ?? 0), 0) / trades.length).toFixed(3)) : 0,
+          totalPnl: Number(trades.reduce((s, t) => s + (t.pnlUsdt ?? 0), 0).toFixed(2)),
+        },
+      };
+    },
+    signals: () => journal.signals.slice(-100).reverse().map((s) => ({ signal: s.signal, status: s.status, score: s.score, rejectReason: s.rejectReason })),
+    equity: () => journal.equity.map((e) => ({ timestamp: e.timestamp, equity: e.equity, drawdownPct: e.drawdownPct, positionCount: e.positionCount })),
+    positions: positionViews,
+    regimes: () => [...regimePerCoin.values()],
+    screener: (): ScreenerDto | null => {
+      const list = [...momentumByCoin.values()].sort((a, b) => b.score - a.score);
+      if (list.length === 0) return null;
+      return {
+        timestamp: Date.now(), watchlistSize: list.length, activeScanList: list.slice(0, 8),
+        regimePerCoin: Object.fromEntries([...regimePerCoin.entries()].map(([k, v]) => [k, v.regime])),
+      };
+    },
+    strategies: strategyStats,
+    getConfig: () => config,
+    setConfig: (patch) => {
+      Object.assign(config, patch);
+      if (patch.strategiesEnabled) config.strategiesEnabled = { ...config.strategiesEnabled, ...patch.strategiesEnabled };
+      return config;
+    },
+    control: async (action: AgentControlAction) => {
+      if (action === "start") runState = "running";
+      else if (action === "pause") runState = "paused";
+      else if (action === "stop") runState = "stopped";
+      else if (action === "close_all") await positions.closeAll(exchange);
+      return { ok: true, status: statusDto() };
+    },
+    closePosition: async (symbol: string) => {
+      const pos = positions.get(symbol);
+      if (!pos || pos.status !== "open") return { ok: false, reason: "no open position" };
+      await exchange.createOrder({ symbol, side: pos.direction === "long" ? "SELL" : "BUY", type: "MARKET", quantity: pos.remainingQty, reduceOnly: true });
+      pos.status = "closed";
+      positions.remove(symbol);
+      return { ok: true };
+    },
+  };
+  const server = buildServer(deps);
+  server.listen(PORT);
+
   feed.onCandleClose((symbol, tf, buf) => {
     if (tf !== "15m") return;
     const htfBuf = feed.buffer(symbol, "4h");
     if (!htfBuf) return;
     const regime = detectRegime([...htfBuf.all()], [...buf.all()]);
     server.emit("regime_update", { symbol, ...regime });
+    regimePerCoin.set(symbol, { timestamp: regime.timestamp, symbol, regime: regime.regime, confidence: regime.confidence, adx: regime.adx });
     void journal.recordRegime({
       timestamp: regime.timestamp, symbol, regime: regime.regime, confidence: regime.confidence,
-      adx: regime.adx, atrRatio: regime.volatilityLevel, bbWidth: 0,
+      adx: regime.adx, atrRatio: regime.volatilityLevel, bbWidth: buf.indicators?.bbWidth ?? 0,
       activeStrategies: [...registry.keys()],
     });
 
+    // update screener momentum snapshot for this coin
+    const ind = buf.indicators;
+    const htfLast = htfBuf.last();
+    if (ind && htfLast && ind.volumeSMA20 > 0 && ind.atrSMA100 > 0) {
+      const of = orderflow.get(symbol)?.snapshot();
+      momentumByCoin.set(symbol, calculateMomentumScore({
+        symbol,
+        priceChange4h: htfLast.open > 0 ? (htfLast.close - htfLast.open) / htfLast.open : 0,
+        volumeRatio: (buf.last()?.volume ?? 0) / ind.volumeSMA20,
+        atrRatio: ind.atr14 / ind.atrSMA100,
+        oiChange4h: of && of.oi.length >= 2 ? (of.oi[of.oi.length - 1]! - of.oi[0]!) / (of.oi[0]! || 1) : 0,
+        adx: regime.adx,
+        bbWidth: ind.bbWidth,
+      }));
+    }
+
+    // honor per-strategy toggles from the live config
+    const activeRegistry = new Map([...registry].filter(([name]) => config.strategiesEnabled[name] !== false));
     const ranked = aggregate({
       symbol,
       chart: [...buf.all()],
@@ -141,7 +271,7 @@ async function main() {
       htfTf: "4h",
       regime,
       signalTtlMs: SIGNAL_TTL_MS,
-      registry,
+      registry: activeRegistry,
       history,
       orderflow: orderflow.get(symbol)?.snapshot(),
       hasCorrelatedPosition: (sym, dir) => positions.openLike().some((p) => p.symbol !== sym && p.direction === dir),
@@ -162,11 +292,14 @@ async function main() {
         multiConfirm,
         now: sig.timestamp,
       });
-      server.emit("signal_generated", { ...sig, score: top.score, approved: decision.approved, reason: decision.reason });
-      void journal.recordSignal(sig, decision.approved ? "taken" : "rejected", top.score, decision.reason);
+      const paused = runState !== "running";
+      const approved = decision.approved && !paused;
+      const reason = paused ? "agent " + runState : decision.reason;
+      server.emit("signal_generated", { ...sig, score: top.score, approved, reason });
+      void journal.recordSignal(sig, approved ? "taken" : "rejected", top.score, reason);
       console.log(`[signal] ${sig.symbol} ${sig.direction} ${sig.strategy} score=${top.score.toFixed(2)} ` +
-        `-> ${decision.approved ? "TAKE" : "REJECT: " + decision.reason}`);
-      if (!decision.approved || !decision.positionSize) return;
+        `-> ${approved ? "TAKE" : "REJECT: " + reason}`);
+      if (!approved || !decision.positionSize) return;
       try {
         const pos = await executeSignal(exchange, sig, decision.positionSize, { leverage: LEVERAGE });
         positions.add(pos);
