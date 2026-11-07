@@ -9,7 +9,7 @@ regime, and activates the most suitable strategies from a pool of 6.
 > The project is being rebuilt as a TypeScript monorepo per
 > `liquidx-ai-agent-prd.md`.
 
-## Status ✅ (24 tests passing)
+## Status ✅ (33 tests passing)
 
 **Increment 1 — foundation + first vertical slice:**
 - **Monorepo** — Turborepo + npm workspaces (`packages/shared`, `apps/agent`, `apps/web`)
@@ -40,10 +40,20 @@ regime, and activates the most suitable strategies from a pool of 6.
 All four implemented strategies are registered in the agent loop; the aggregator now
 has a real pool to rank and multi-confirm across.
 
+**Increment 4 — risk + execution (Phase 4–5):**
+- **Module 7 Risk Manager** — position sizing (20x / 25% margin risk with leverage cap),
+  concurrency + one-per-symbol, correlation groups, drawdown size scaling, daily
+  circuit breaker + consecutive-loss guard, spread + min-R:R gates, confidence sizing
+- **Module 8 Execution Engine** — `ExchangeClient` abstraction with an in-memory
+  `PaperExchangeClient` and a signed `BinanceFuturesClient` (live/testnet); bracket
+  order placement (entry + SL + TP1 50% + TP2), and a `PositionManager` that moves SL
+  to breakeven on TP1 and can emergency-close all
+- Wired into the agent loop: aggregate → risk gate → execute (paper by default,
+  live when `LIVE=1` + API keys)
+
 Not yet built (next increments): strategies 4 & 6 (OI divergence, liquidation fade) +
-their order-flow data (Module 1B), risk manager + position sizing (Module 7),
-execution engine (Module 8, live orders), journaling (Postgres), Telegram,
-dashboard pages 2–7. See the PRD's phase plan.
+their order-flow data (Module 1B), user-data-stream fill detection, journaling to
+Postgres (Module 9), Telegram alerts, and dashboard pages 2–7. See the PRD's phase plan.
 
 ## Layout
 ```
