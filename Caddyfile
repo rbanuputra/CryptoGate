@@ -1,8 +1,7 @@
 # Replace :80 with your domain (e.g. liquidx.example.com) for automatic HTTPS
 :80 {
-	handle /api/* {
-		reverse_proxy agent:4000
-	}
+	# Only the realtime socket reaches the agent directly (token-authenticated).
+	# REST goes through the web app's /api/agent proxy, which holds API_SECRET.
 	handle /socket.io/* {
 		reverse_proxy agent:4000
 	}

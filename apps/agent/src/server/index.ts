@@ -24,6 +24,8 @@ import type {
 import { backtestSmc, BACKTEST_DEFAULT } from "../backtest/runner.js";
 import { backtestMulti, walkForwardSplit, MULTI_BT_DEFAULT, type MultiBacktestConfig } from "../backtest/multi-runner.js";
 import { fetchKlines, loadCsv } from "../backtest/data-loader.js";
+import { TF_MS } from "@cryptogate/shared";
+import { verifySocketToken } from "./socket-token.js";
 
 export interface ServerDeps {
   status(): AgentStatusDto;
@@ -106,8 +108,18 @@ export function buildServer(deps: ServerDeps): ServerHandle {
       const useRegime = body.useRegimeSwitching !== false;
       const doWalkForward = body.walkForward === true;
 
-      const chart = await fetchKlines(symbol, chartTf, { limit: 1500 });
-      const htf = await fetchKlines(symbol, htfTf, { limit: 1000 });
+      const exchange = deps.getConfig().exchange;
+      const rawDays = body.days === undefined ? 30 : Number(body.days);
+      const allHistory = rawDays === 0;
+      if (allHistory && TF_MS[chartTf] < TF_MS["15m"]) {
+        return res.status(400).json({ error: "Since-listing history needs Chart TF 15m or higher" });
+      }
+      const days = Math.min(Math.max(rawDays || 30, 5), 365);
+      const FLOOR = Date.UTC(2019, 0, 1);
+      const chartOpts = allHistory ? { startMs: FLOOR } : { limit: Math.ceil((days * 86_400_000) / TF_MS[chartTf]) + 200 };
+      const htfOpts = allHistory ? { startMs: FLOOR } : { limit: Math.ceil((days * 86_400_000) / TF_MS[htfTf]) + 250 };
+      const chart = await fetchKlines(symbol, chartTf, chartOpts, exchange);
+      const htf = await fetchKlines(symbol, htfTf, htfOpts, exchange);
 
       const multiCfg = {
         ...MULTI_BT_DEFAULT,
@@ -145,6 +157,7 @@ export function buildServer(deps: ServerDeps): ServerHandle {
         strategyBreakdown: result.strategyBreakdown,
         regimeLog: result.regimeLog,
         walkForward: wf,
+        period: chart.length ? { from: chart[0]!.openTime, to: chart[chart.length - 1]!.openTime, bars: chart.length } : undefined,
       };
       res.json(dto);
     } catch (e) {
@@ -154,6 +167,11 @@ export function buildServer(deps: ServerDeps): ServerHandle {
 
   const http = createServer(app);
   const io = new IOServer(http, { cors: { origin: "*" } });
+  if (apiSecret) {
+    io.use((socket, next) =>
+      verifySocketToken(socket.handshake.auth?.token, apiSecret) ? next() : next(new Error("unauthorized")),
+    );
+  }
   io.on("connection", (socket) => socket.emit("agent_status", deps.status()));
 
   return {

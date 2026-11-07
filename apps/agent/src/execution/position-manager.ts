@@ -1,5 +1,5 @@
 import type { Direction, PositionSize, Signal } from "@cryptogate/shared";
-import type { ExchangeClient, OrderSide } from "./binance-client.js";
+import type { ExchangeClient, OrderSide } from "../exchange/adapter.js";
 
 export interface ManagedPosition {
   symbol: string;

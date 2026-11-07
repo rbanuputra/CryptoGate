@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
-import { AGENT_URL } from "./api";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || undefined;
 
 /** Poll an async fetcher on an interval; returns the latest value + error. */
 export function usePolling<T>(fetcher: () => Promise<T>, ms = 5000): { data: T | null; error: string | null } {
@@ -22,7 +22,16 @@ export function usePolling<T>(fetcher: () => Promise<T>, ms = 5000): { data: T |
 
 let socket: Socket | null = null;
 export function getSocket(): Socket {
-  if (!socket) socket = io(AGENT_URL, { transports: ["websocket"], autoConnect: true });
+  if (!socket) socket = io(WS_URL, {
+    transports: ["websocket"],
+    autoConnect: true,
+    auth: (cb) => {
+      fetch("/api/socket-token", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((j: { token?: string }) => cb({ token: j.token ?? "" }))
+        .catch(() => cb({ token: "" }));
+    },
+  });
   return socket;
 }
 

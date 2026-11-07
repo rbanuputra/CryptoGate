@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/data/candles
+**/.next
+**/.turbo
+**/*.tsbuildinfo
+.git
+.env
+.env.*
+!.env.example
+.DS_Store
+README.md

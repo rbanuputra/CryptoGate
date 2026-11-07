@@ -4,7 +4,7 @@
  * notify, and feed the risk circuit breaker.
  */
 import type { Trade } from "@cryptogate/shared";
-import type { ExchangeClient } from "./binance-client.js";
+import type { ExchangeClient } from "../exchange/adapter.js";
 import { PositionManager } from "./position-manager.js";
 import type { OrderFillEvent } from "./user-stream.js";
 import type { RiskManager } from "../risk/manager.js";

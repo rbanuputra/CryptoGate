@@ -4,7 +4,7 @@
  * the full agent loop offline. Supports single-strategy or regime-switched mode.
  */
 import type { Candle, Timeframe, StrategyName, Signal } from "@cryptogate/shared";
-import { computeIndicators } from "@cryptogate/shared";
+import { TF_MS, computeIndicators } from "@cryptogate/shared";
 import { detectRegime } from "../regime/detector.js";
 import { aggregate, type SignalHistoryEntry } from "../engine/aggregator.js";
 import { SmcSweepStrategy } from "../strategies/smc-strategy.js";
@@ -104,6 +104,9 @@ export function backtestMulti(
   const regimeLog: Array<{ time: number; regime: string }> = [];
   const history: SignalHistoryEntry[] = [];
 
+  const chartStep = chart[1]!.openTime - chart[0]!.openTime;
+  const htfStep = TF_MS[cfg.htfTf];
+  let htfEnd = 0;
   const LOOKBACK = 200;
   const SIGNAL_TTL = 30 * 60 * 1000;
   let inPosition = false;
@@ -116,11 +119,12 @@ export function backtestMulti(
     const chartSlice = chart.slice(Math.max(0, i - LOOKBACK), i + 1);
     const barTime = chart[i]!.openTime;
 
-    // find matching HTF candles up to current time
-    const htfSlice = htf.filter((c) => c.openTime <= barTime);
-    if (htfSlice.length < 50) continue;
+    // only HTF candles fully closed by the end of this chart bar (no lookahead)
+    while (htfEnd < htf.length && htf[htfEnd]!.openTime + htfStep <= barTime + chartStep) htfEnd++;
+    if (htfEnd < 50) continue;
+    const htfWindow = htf.slice(Math.max(0, htfEnd - 200), htfEnd);
 
-    const regime = detectRegime(htfSlice.slice(-200), chartSlice);
+    const regime = detectRegime(htfWindow, chartSlice);
     regimeLog.push({ time: barTime, regime: regime.regime });
 
     // If regime switching is off, use all registered strategies regardless
@@ -128,7 +132,7 @@ export function backtestMulti(
     const ranked = aggregate({
       symbol: "BACKTEST",
       chart: chartSlice,
-      htf: htfSlice.slice(-200),
+      htf: htfWindow,
       htfTf: cfg.htfTf,
       regime,
       signalTtlMs: SIGNAL_TTL,
@@ -164,7 +168,7 @@ export function backtestMulti(
   return {
     trades,
     equityCurve,
-    stats: computeStats(trades, equity, cfg.startEquity, maxDd, equityCurve),
+    stats: computeStats(trades, equity, cfg.startEquity, maxDd, equityCurve, chart[0]!.openTime, chart[n - 1]!.openTime),
     startEquity: cfg.startEquity,
     finalEquity: equity,
     regimeLog,
@@ -276,6 +280,8 @@ function simulateTrade(
 function computeStats(
   trades: MbtTrade[], finalEquity: number, startEquity: number, maxDd: number,
   curve: Array<{ time: number; equity: number }>,
+  startTime: number,
+  endTime: number,
 ): MultiBacktestStats {
   const wins = trades.filter((t) => t.pnl > 0);
   const grossP = wins.reduce((s, t) => s + t.pnl, 0);
@@ -283,17 +289,7 @@ function computeStats(
   const pf = grossL > 0 ? grossP / grossL : grossP > 0 ? 999 : 0;
   const avgR = trades.length ? trades.reduce((s, t) => s + t.rMultiple, 0) / trades.length : 0;
 
-  // Sharpe: annualized from daily returns
-  const dailyReturns: number[] = [];
-  for (let i = 1; i < curve.length; i++) {
-    const prev = curve[i - 1]!.equity;
-    if (prev > 0) dailyReturns.push((curve[i]!.equity - prev) / prev);
-  }
-  const meanR = dailyReturns.length ? dailyReturns.reduce((s, r) => s + r, 0) / dailyReturns.length : 0;
-  const stdR = dailyReturns.length > 1
-    ? Math.sqrt(dailyReturns.reduce((s, r) => s + (r - meanR) ** 2, 0) / (dailyReturns.length - 1))
-    : 0;
-  const sharpe = stdR > 0 ? (meanR / stdR) * Math.sqrt(252) : 0;
+  const sharpe = dailySharpe(curve, startTime, endTime);
 
   return {
     totalTrades: trades.length,
@@ -304,6 +300,28 @@ function computeStats(
     avgR: Number(avgR.toFixed(4)),
     sharpeRatio: Number(sharpe.toFixed(3)),
   };
+}
+
+const DAY_MS = 86_400_000;
+
+/** Annualized Sharpe from end-of-day equity (flat days count as 0% return). 0 if < 5 days or no variance. */
+export function dailySharpe(curve: Array<{ time: number; equity: number }>, startTime: number, endTime: number): number {
+  const firstDay = Math.floor(startTime / DAY_MS);
+  const lastDay = Math.floor(endTime / DAY_MS);
+  if (lastDay - firstDay < 5 || curve.length === 0) return 0;
+  const returns: number[] = [];
+  let prevEquity = curve[0]!.equity;
+  let i = 0;
+  for (let d = firstDay; d <= lastDay; d++) {
+    let eq = prevEquity;
+    while (i < curve.length && curve[i]!.time < (d + 1) * DAY_MS) eq = curve[i++]!.equity;
+    if (prevEquity > 0) returns.push((eq - prevEquity) / prevEquity);
+    prevEquity = eq;
+  }
+  const mean = returns.reduce((a, r) => a + r, 0) / returns.length;
+  const variance = returns.reduce((a, r) => a + (r - mean) ** 2, 0) / (returns.length - 1);
+  const std = Math.sqrt(variance);
+  return std > 1e-12 ? Number(((mean / std) * Math.sqrt(365)).toFixed(3)) : 0;
 }
 
 function computeBreakdown(trades: MbtTrade[]): Record<string, { trades: number; winRate: number; pf: number; pnl: number }> {

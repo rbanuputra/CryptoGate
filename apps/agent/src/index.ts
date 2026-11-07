@@ -8,6 +8,7 @@
  */
 import {
   MarketRegime,
+  type ExchangeName,
   type StrategyName,
   type Timeframe,
   type AgentStatusDto,
@@ -30,12 +31,7 @@ import { VwapBounceStrategy } from "./strategies/vwap-bounce.js";
 import { OiDivergenceStrategy } from "./strategies/oi-divergence.js";
 import { LiquidationFadeStrategy } from "./strategies/liquidation-fade.js";
 import type { Strategy } from "./strategies/base.js";
-import {
-  OrderFlowStore,
-  fetchOpenInterest,
-  fetchFundingRate,
-  fetchLongShortRatio,
-} from "./data/orderflow.js";
+import { OrderFlowStore } from "./data/orderflow.js";
 import { InMemoryJournal, PrismaJournal, type Journal } from "./monitoring/journal.js";
 import { getPrismaClient } from "./data/db.js";
 import {
@@ -46,16 +42,15 @@ import {
   type Notifier,
 } from "./monitoring/telegram.js";
 import { TradeTracker } from "./execution/trade-tracker.js";
-import { UserDataStream } from "./execution/user-stream.js";
 import { aggregate, multiStrategyConfirm, type SignalHistoryEntry } from "./engine/aggregator.js";
 import { RiskManager, RISK_DEFAULT } from "./risk/manager.js";
 import { PositionManager } from "./execution/position-manager.js";
 import { executeSignal } from "./execution/executor.js";
 import {
+  createExchangeAdapter,
   PaperExchangeClient,
-  BinanceFuturesClient,
   type ExchangeClient,
-} from "./execution/binance-client.js";
+} from "./exchange/index.js";
 import { buildServer, type ServerDeps } from "./server/index.js";
 
 const SYMBOLS = (process.env.SYMBOLS ?? "BTCUSDT,ETHUSDT,SOLUSDT").split(",");
@@ -63,17 +58,7 @@ const PORT = Number(process.env.AGENT_PORT ?? 4000);
 const SIGNAL_TTL_MS = 30 * 60 * 1000;
 const LEVERAGE = Number(process.env.LEVERAGE ?? 20);
 const START_EQUITY = Number(process.env.START_EQUITY ?? 10_000);
-
-function buildExchangeClient(): ExchangeClient {
-  const key = process.env.BINANCE_API_KEY;
-  const secret = process.env.BINANCE_API_SECRET;
-  if (process.env.LIVE === "1" && key && secret) {
-    console.log("[agent] using LIVE Binance client (testnet=" + (process.env.BINANCE_TESTNET !== "false") + ")");
-    return new BinanceFuturesClient({ apiKey: key, apiSecret: secret, testnet: process.env.BINANCE_TESTNET !== "false" });
-  }
-  console.log("[agent] using PAPER exchange client (no live orders).");
-  return new PaperExchangeClient();
-}
+const EXCHANGE: ExchangeName = (process.env.EXCHANGE as ExchangeName) || "binance";
 
 function buildNotifier(): Notifier {
   const targets: Notifier[] = [new ConsoleNotifier()];
@@ -89,10 +74,19 @@ function buildNotifier(): Notifier {
 async function main() {
   const startedAt = Date.now();
   let runState: AgentRunState = "running";
-  const mode: "live" | "paper" = process.env.LIVE === "1" && process.env.BINANCE_API_KEY ? "live" : "paper";
+  const isLive = process.env.LIVE === "1";
+  const adapter = isLive ? createExchangeAdapter(EXCHANGE) : null;
+  const mode: "live" | "paper" = isLive && adapter ? "live" : "paper";
+  const exchange: ExchangeClient = adapter?.client ?? new PaperExchangeClient();
 
   const timeframes: Timeframe[] = ["15m", "4h"];
-  const feed = new DataFeed(SYMBOLS, timeframes);
+  const feed = adapter
+    ? new DataFeed(SYMBOLS, timeframes, adapter.marketData)
+    : new DataFeed(SYMBOLS, timeframes, {
+        async fetchKlines() { return []; },
+        klineWsUrl() { return ""; },
+        parseKlineWsMessage() { return null; },
+      });
 
   // Strategy registry — all 6 strategies implemented.
   const registry = new Map<StrategyName, Strategy>([
@@ -107,13 +101,14 @@ async function main() {
   // Order-flow stores (OI/funding/LS ratio), polled every 5 min in LIVE mode.
   const orderflow = new Map<string, OrderFlowStore>(SYMBOLS.map((s) => [s, new OrderFlowStore(s)]));
   async function pollOrderFlow(): Promise<void> {
+    if (!adapter) return;
     for (const symbol of SYMBOLS) {
       const store = orderflow.get(symbol)!;
       try {
         const [oi, funding, ls] = await Promise.all([
-          fetchOpenInterest(symbol),
-          fetchFundingRate(symbol),
-          fetchLongShortRatio(symbol),
+          adapter.orderFlow.fetchOpenInterest(symbol),
+          adapter.orderFlow.fetchFundingRate(symbol),
+          adapter.orderFlow.fetchLongShortRatio(symbol),
         ]);
         store.pushOi(oi, Date.now());
         store.pushFunding(funding);
@@ -126,7 +121,6 @@ async function main() {
   const history: SignalHistoryEntry[] = [];
   const risk = new RiskManager(RISK_DEFAULT, START_EQUITY);
   const positions = new PositionManager();
-  const exchange = buildExchangeClient();
   const prisma = await getPrismaClient();
   const memJournal = new InMemoryJournal();
   const journal: Journal & { trades: typeof memJournal.trades; signals: typeof memJournal.signals; equity: typeof memJournal.equity; regimes: typeof memJournal.regimes } =
@@ -147,6 +141,7 @@ async function main() {
 
   // ---- live in-memory view state for the dashboard ----------------------
   const config: AgentConfigDto = {
+    exchange: EXCHANGE,
     leverage: LEVERAGE,
     riskPct: RISK_DEFAULT.riskPct,
     maxDailyLossPct: RISK_DEFAULT.circuit.maxDailyLossPct,
@@ -376,29 +371,26 @@ async function main() {
 
   scheduleDailySummary();
 
-  if (process.env.LIVE === "1") {
-    console.log("[agent] bootstrapping historical data...");
+  if (isLive && adapter) {
+    console.log(`[agent] bootstrapping historical data from ${EXCHANGE}...`);
     await feed.bootstrap();
     await pollOrderFlow();
     setInterval(() => void pollOrderFlow(), 5 * 60 * 1000);
     feed.connect();
 
-    const key = process.env.BINANCE_API_KEY;
-    if (key) {
-      const userStream = new UserDataStream({ apiKey: key, testnet: process.env.BINANCE_TESTNET !== "false" });
-      userStream.onEvent((ev) => {
-        if (ev.type !== "fill") return;
-        void tracker.processFill(ev).then(() => {
-          server.emit("trade_updated", { symbol: ev.symbol, orderId: ev.orderId, status: ev.status });
-          server.emit("equity_update", tracker.snapshot());
-        });
+    adapter.userStream.onEvent((ev) => {
+      if (ev.type !== "fill") return;
+      void tracker.processFill(ev).then(() => {
+        server.emit("trade_updated", { symbol: ev.symbol, orderId: ev.orderId, status: ev.status });
+        server.emit("equity_update", tracker.snapshot());
       });
-      await userStream.connect();
-      console.log("[agent] user data stream connected (fill detection active).");
-    }
-    console.log("[agent] live feed connected.");
+    });
+    const apiKey = EXCHANGE === "bitget" ? process.env.BITGET_API_KEY! : process.env.BINANCE_API_KEY!;
+    await adapter.userStream.connect(apiKey);
+    console.log(`[agent] ${EXCHANGE} user data stream connected (fill detection active).`);
+    console.log(`[agent] live feed connected via ${EXCHANGE}.`);
   } else {
-    console.log("[agent] started in IDLE mode (set LIVE=1 to connect Binance feed).");
+    console.log("[agent] started in IDLE mode (set LIVE=1 + EXCHANGE to connect).");
   }
 }
 

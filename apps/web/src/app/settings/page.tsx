@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { AgentConfigDto, AgentStatusDto, StrategyName } from "@cryptogate/shared";
+import type { AgentConfigDto, AgentStatusDto, ExchangeName, StrategyName } from "@cryptogate/shared";
 import { api } from "../../lib/api";
 
 export default function Settings() {
@@ -51,6 +51,22 @@ export default function Settings() {
 
       {cfg && (
         <>
+          <h2>Exchange</h2>
+          <div className="card" style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <span className="k" style={{ margin: 0 }}>Active Exchange</span>
+            <select
+              value={cfg.exchange}
+              onChange={(e) => setCfg({ ...cfg, exchange: e.target.value as ExchangeName })}
+              style={{ flex: 1, maxWidth: 200 }}
+            >
+              <option value="binance">Binance Futures</option>
+              <option value="bitget">Bitget Futures</option>
+            </select>
+            <span className="muted" style={{ fontSize: 11 }}>
+              Requires restart &amp; matching API keys in .env
+            </span>
+          </div>
+
           <h2>Risk Parameters</h2>
           <div className="card grid">
             <Field label="Leverage" value={cfg.leverage} onChange={(v) => num("leverage", v)} />

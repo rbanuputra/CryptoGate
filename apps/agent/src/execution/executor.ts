@@ -3,7 +3,7 @@
  * for an approved signal. Works against any ExchangeClient (paper or live).
  */
 import { roundToStep, type PositionSize, type Signal } from "@cryptogate/shared";
-import type { ExchangeClient } from "./binance-client.js";
+import type { ExchangeClient } from "../exchange/adapter.js";
 import { exitSide, type ManagedPosition } from "./position-manager.js";
 
 export interface ExecuteOptions {

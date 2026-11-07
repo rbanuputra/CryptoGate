@@ -3,6 +3,8 @@ import type { Trade } from "./trade.js";
 import type { MarketRegime } from "./regime.js";
 import type { MomentumScore } from "./screener.js";
 
+export type ExchangeName = "binance" | "bitget";
+
 export type AgentRunState = "running" | "paused" | "stopped";
 
 export interface AgentStatusDto {
@@ -69,6 +71,7 @@ export interface ScreenerDto {
 }
 
 export interface AgentConfigDto {
+  exchange: ExchangeName;
   leverage: number;
   riskPct: number;
   maxDailyLossPct: number;
@@ -102,6 +105,7 @@ export interface BacktestRequestDto {
   strategies?: string[] | "all";
   useRegimeSwitching?: boolean;
   walkForward?: boolean;
+  days?: number;
 }
 
 export interface BacktestTradeDto {
@@ -140,4 +144,5 @@ export interface BacktestResultDto {
   strategyBreakdown?: Record<string, { trades: number; winRate: number; pf: number; pnl: number }>;
   regimeLog?: Array<{ time: number; regime: string }>;
   walkForward?: { train: BacktestStatsDto; test: BacktestStatsDto };
+  period?: { from: number; to: number; bars: number };
 }

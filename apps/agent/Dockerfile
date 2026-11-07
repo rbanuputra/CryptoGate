@@ -1,5 +1,5 @@
 FROM node:20-alpine AS base
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
 FROM base AS deps
@@ -25,7 +25,7 @@ COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.
 COPY --from=builder /app/apps/agent/dist ./apps/agent/dist
 COPY --from=builder /app/apps/agent/package.json ./apps/agent/package.json
 COPY --from=builder /app/apps/agent/prisma ./apps/agent/prisma
-COPY --from=builder /app/apps/agent/node_modules ./apps/agent/node_modules
+RUN mkdir -p /app/data/candles && chown -R 1001:1001 /app/data
 USER agent
 EXPOSE 4000
-CMD ["node", "apps/agent/dist/index.js"]
+CMD ["sh", "-c", "if [ -n \"$DATABASE_URL\" ]; then ./node_modules/.bin/prisma db push --schema=apps/agent/prisma/schema.prisma --skip-generate; fi && node apps/agent/dist/index.js"]

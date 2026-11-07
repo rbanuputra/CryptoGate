@@ -1,43 +1,39 @@
-/** Historical candle loading: Binance USDⓈ-M klines (REST, paginated) or CSV. */
+/** Historical candle loading: exchange klines (REST, paginated) or CSV. */
 import { readFileSync } from "node:fs";
-import { TF_MS, type Candle, type Timeframe } from "@cryptogate/shared";
+import type { Candle, ExchangeName, Timeframe } from "@cryptogate/shared";
+import type { MarketDataAdapter } from "../exchange/adapter.js";
+import { createBinanceAdapter } from "../exchange/binance.js";
+import { createBitgetAdapter } from "../exchange/bitget.js";
+import { fetchKlinesCached } from "./candle-cache.js";
 
-const FAPI = "https://fapi.binance.com/fapi/v1/klines";
+let _adapter: MarketDataAdapter | null = null;
+
+export function setMarketDataAdapter(adapter: MarketDataAdapter): void {
+  _adapter = adapter;
+}
+
+function getDefaultAdapter(exchange?: ExchangeName): MarketDataAdapter {
+  if (_adapter) return _adapter;
+  if (exchange === "bitget") {
+    return createBitgetAdapter({
+      apiKey: process.env.BITGET_API_KEY ?? "",
+      apiSecret: process.env.BITGET_API_SECRET ?? "",
+      passphrase: process.env.BITGET_PASSPHRASE ?? "",
+    }).marketData;
+  }
+  return createBinanceAdapter({
+    apiKey: process.env.BINANCE_API_KEY ?? "",
+    apiSecret: process.env.BINANCE_API_SECRET ?? "",
+  }).marketData;
+}
 
 export async function fetchKlines(
   symbol: string,
   interval: Timeframe,
   opts: { startMs?: number; endMs?: number; limit?: number } = {},
+  exchange?: ExchangeName,
 ): Promise<Candle[]> {
-  const step = TF_MS[interval];
-  const end = opts.endMs ?? Date.now();
-  let cursor = opts.startMs ?? end - step * (opts.limit ?? 1500);
-  const out: Candle[] = [];
-  while (cursor < end) {
-    const url = `${FAPI}?symbol=${symbol}&interval=${interval}&startTime=${cursor}&endTime=${end}&limit=1500`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`binance klines ${symbol} ${interval} HTTP ${res.status}`);
-    const rows = (await res.json()) as unknown[][];
-    if (rows.length === 0) break;
-    for (const k of rows) {
-      out.push({
-        openTime: Number(k[0]),
-        open: Number(k[1]),
-        high: Number(k[2]),
-        low: Number(k[3]),
-        close: Number(k[4]),
-        volume: Number(k[5]),
-        closeTime: Number(k[6]),
-      });
-    }
-    const lastOpen = Number(rows[rows.length - 1]![0]);
-    const next = lastOpen + step;
-    if (next <= cursor) break;
-    cursor = next;
-    if (rows.length < 1500) break;
-    await new Promise((r) => setTimeout(r, 120));
-  }
-  return out;
+  return fetchKlinesCached(getDefaultAdapter(exchange), exchange ?? "binance", symbol, interval, opts);
 }
 
 /** CSV with header: timestamp,open,high,low,close,volume (timestamp epoch-ms). */

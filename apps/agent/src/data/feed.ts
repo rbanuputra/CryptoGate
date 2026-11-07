@@ -1,13 +1,12 @@
 /**
- * Module 1: Data Feed — REST bootstrap + Binance combined kline WebSocket.
+ * Module 1: Data Feed — REST bootstrap + exchange kline WebSocket.
  * Maintains a CandleBuffer per (symbol, timeframe) and emits on each closed bar.
+ * Exchange-agnostic: uses MarketDataAdapter for REST + WS.
  */
 import WebSocket from "ws";
 import type { Candle, Timeframe } from "@cryptogate/shared";
 import { CandleBuffer } from "./candle-buffer.js";
-import { fetchKlines } from "../backtest/data-loader.js";
-
-const WS_BASE = "wss://fstream.binance.com/stream?streams=";
+import type { MarketDataAdapter } from "../exchange/adapter.js";
 
 type CloseHandler = (symbol: string, tf: Timeframe, buf: CandleBuffer) => void;
 
@@ -19,6 +18,7 @@ export class DataFeed {
   constructor(
     private readonly symbols: string[],
     private readonly timeframes: Timeframe[],
+    private readonly marketData: MarketDataAdapter,
   ) {}
 
   private key(symbol: string, tf: Timeframe): string {
@@ -33,11 +33,10 @@ export class DataFeed {
     this.handlers.push(fn);
   }
 
-  /** Fetch history to initialize indicators for every (symbol, tf). */
   async bootstrap(limit = 1500): Promise<void> {
     for (const symbol of this.symbols) {
       for (const tf of this.timeframes) {
-        const candles = await fetchKlines(symbol, tf, { limit });
+        const candles = await this.marketData.fetchKlines(symbol, tf, { limit });
         const buf = new CandleBuffer(symbol, tf);
         buf.seed(candles);
         this.buffers.set(this.key(symbol, tf), buf);
@@ -46,54 +45,48 @@ export class DataFeed {
   }
 
   connect(): void {
-    const streams = this.symbols
-      .flatMap((s) => this.timeframes.map((tf) => `${s.toLowerCase()}@kline_${tf}`))
-      .join("/");
-    this.ws = new WebSocket(WS_BASE + streams);
+    const url = this.marketData.klineWsUrl(this.symbols, this.timeframes);
+    this.ws = new WebSocket(url);
+
+    // Bitget requires subscribe messages after connection
+    this.ws.on("open", () => {
+      if (url.includes("bitget")) {
+        for (const symbol of this.symbols) {
+          for (const tf of this.timeframes) {
+            const tfMap: Record<string, string> = {
+              "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m",
+              "1h": "1H", "4h": "4H", "1d": "1D",
+            };
+            this.ws!.send(JSON.stringify({
+              op: "subscribe",
+              args: [{ instType: "USDT-FUTURES", channel: `candle${tfMap[tf] ?? tf}`, instId: symbol }],
+            }));
+          }
+        }
+      }
+    });
+
     this.ws.on("message", (raw: WebSocket.RawData) => this.onMessage(raw));
     this.ws.on("close", () => setTimeout(() => this.connect(), 2000));
     this.ws.on("error", (e: Error) => console.error("[feed] ws error", e.message));
   }
 
   private onMessage(raw: WebSocket.RawData): void {
-    let msg: { data?: { s: string; k: KlinePayload } };
-    try {
-      msg = JSON.parse(raw.toString());
-    } catch {
-      return;
-    }
-    const k = msg.data?.k;
-    const symbol = msg.data?.s;
-    if (!k || !symbol) return;
-    const tf = k.i as Timeframe;
+    const text = raw.toString();
+    if (text === "pong") return;
+
+    const parsed = this.marketData.parseKlineWsMessage(text);
+    if (!parsed) return;
+
+    const { symbol, tf, candle, isClosed } = parsed;
     const buf = this.buffers.get(this.key(symbol, tf));
     if (!buf) return;
-    const candle: Candle = {
-      openTime: k.t,
-      open: Number(k.o),
-      high: Number(k.h),
-      low: Number(k.l),
-      close: Number(k.c),
-      volume: Number(k.v),
-      closeTime: k.T,
-    };
-    buf.update(candle, k.x);
-    if (k.x) for (const h of this.handlers) h(symbol, tf, buf);
+
+    buf.update(candle, isClosed);
+    if (isClosed) for (const h of this.handlers) h(symbol, tf, buf);
   }
 
   close(): void {
     this.ws?.close();
   }
-}
-
-interface KlinePayload {
-  t: number;
-  T: number;
-  i: string;
-  o: string;
-  h: string;
-  l: string;
-  c: string;
-  v: string;
-  x: boolean;
 }

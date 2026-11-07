@@ -1,8 +1,9 @@
 # CryptoGate — AI Multi-Strategy Trading Agent
 
-Regime-aware, multi-strategy trading agent for **Binance Futures (USDⓈ-M)** with a
-real-time Next.js dashboard. The agent dynamically screens coins, detects market
-regime, and activates the most suitable strategies from a pool of 6.
+Regime-aware, multi-strategy trading agent for **Binance / Bitget Futures (USDⓈ-M)**
+with a real-time Next.js dashboard. The agent dynamically screens coins, detects
+market regime, and activates the most suitable strategies from a pool of 6.
+Exchange is selectable via `EXCHANGE=binance|bitget` env var or the Settings UI.
 
 > ⚠️ **Pivot in progress.** This repo previously held a Laravel fundamental-screening
 > app. That code remains in git history (`git log`, commit `e5774c4` and earlier).
@@ -102,9 +103,10 @@ fill → journal + notify).
   `ADMIN_PASS`, default admin/admin), JWT sessions (24h), custom `/login` page
 - **Dashboard protection** — Next.js middleware redirects unauthenticated users to
   `/login`; SessionProvider wraps the app; nav shows username + logout button
-- **Agent API protection** — optional `API_SECRET` bearer token; when set, all
-  `/api/*` endpoints (except `/api/health`) require the token. The dashboard sends
-  it automatically via `NEXT_PUBLIC_API_SECRET`
+- **Agent API protection** — optional `API_SECRET`; when set, all agent `/api/*`
+  endpoints (except `/api/health`) require it. The browser never sees the secret:
+  the dashboard calls the Next.js proxy `/api/agent/*` (session-checked), which adds
+  the bearer token server-side. Socket.io uses a 60s HMAC token from `/api/socket-token`
 - **Routes** — 11 total: 8 dashboard pages + login + auth API + middleware
 
 **Increment 10 — multi-strategy backtesting & deployment (Phase 8–9):**
@@ -123,7 +125,23 @@ fill → journal + notify).
 - **Caddy reverse proxy** — routes `/api/*` and `/socket.io/*` to agent, everything
   else to web; replace `:80` with domain for automatic HTTPS
 
-The system is ready for paper-trading deployment.
+**Increment 11 — multi-exchange support (Binance + Bitget):**
+- **ExchangeAdapter interface** — unified abstraction for trading client, market data
+  (REST klines + WS), order flow (OI, funding, LS ratio), and user data stream
+- **BinanceAdapter** — refactored existing Binance code into the adapter pattern
+- **BitgetAdapter** — full Bitget Futures (USDT-M) implementation: HMAC-SHA256 signing
+  with passphrase, Mix V2 order API, plan orders for SL/TP, kline REST + WS,
+  order flow endpoints, private WS with login auth for fill detection
+- **Exchange factory** — `createExchangeAdapter(name)` selects Binance or Bitget based
+  on `EXCHANGE` env var; `PaperExchangeClient` remains for paper mode
+- **DataFeed refactored** — exchange-agnostic, receives `MarketDataAdapter` instead of
+  hardcoded Binance URLs; handles both URL-stream (Binance) and subscribe-message
+  (Bitget) WebSocket patterns
+- **Settings UI** — exchange dropdown selector (Binance Futures / Bitget Futures)
+- **Backwards compatible** — old `binance-client.ts` re-exports from new location;
+  all 36 tests pass without changes
+
+The system is ready for paper-trading deployment on Binance or Bitget.
 
 ## Run the dashboard
 ```bash

@@ -19,6 +19,7 @@ const DEFAULTS: BacktestRequestDto = {
   strategies: "all",
   useRegimeSwitching: true,
   walkForward: false,
+  days: 30,
 };
 
 export default function BacktestLab() {
@@ -81,6 +82,15 @@ export default function BacktestLab() {
               <option value="1h">1h</option><option value="4h">4h</option><option value="1d">1d</option>
             </select>
           </div>
+          <div>
+            <div className="k">History</div>
+            <select value={form.days ?? 30} onChange={(e) => set("days", Number(e.target.value))} style={{ width: "100%", marginTop: 4 }}>
+              <option value={15}>15 days</option><option value={30}>30 days</option>
+              <option value={60}>60 days</option><option value={90}>90 days</option>
+              <option value={180}>180 days</option><option value={365}>365 days</option>
+              <option value={0}>All (since listing, 15m+)</option>
+            </select>
+          </div>
           <Field label="Start Equity" type="number" value={form.startEquity} onChange={(v) => set("startEquity", Number(v))} />
           <Field label="Risk %" type="number" value={form.riskPct} step="0.005" onChange={(v) => set("riskPct", Number(v))} />
           <Field label="Slippage %" type="number" value={form.slippagePct} step="0.0001" onChange={(v) => set("slippagePct", Number(v))} />
@@ -117,6 +127,11 @@ export default function BacktestLab() {
       {s && result && (
         <>
           <h2>Results — {result.symbol} {result.chartTf}/{result.htfTf}</h2>
+          {result.period && (
+            <p className="muted" style={{ marginTop: -8 }}>
+              {fmtTime(result.period.from)} → {fmtTime(result.period.to)} · {result.period.bars.toLocaleString()} bars
+            </p>
+          )}
           <div className="grid">
             <Stat k="Trades" v={`${s.totalTrades}`} />
             <Stat k="Win Rate" v={`${(s.winRate * 100).toFixed(1)}%`} />
@@ -165,14 +180,14 @@ export default function BacktestLab() {
             </>
           )}
 
-          <h2>Trade List ({result.trades.length})</h2>
+          <h2>Trade List ({result.trades.length}{result.trades.length > 300 ? ", last 300 shown" : ""})</h2>
           <div className="card" style={{ overflowX: "auto" }}>
             <table>
               <thead>
                 <tr><th>#</th><th>Entry</th><th>Exit</th><th>Dir</th><th>Strategy</th><th>Entry $</th><th>Exit $</th><th>Exit Type</th><th>PnL</th><th>R</th><th>Equity</th></tr>
               </thead>
               <tbody>
-                {result.trades.map((t) => (
+                {result.trades.slice(-300).map((t) => (
                   <tr key={t.id}>
                     <td>{t.id}</td>
                     <td className="muted">{fmtTime(t.entryTime)}</td>
