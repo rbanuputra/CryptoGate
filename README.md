@@ -1,201 +1,61 @@
-# CryptoGate
+# CryptoGate — AI Multi-Strategy Trading Agent
 
-Automated crypto fundamental screening dashboard. Evaluates 500+ tokens across tokenomics, valuation, and manipulation detection using a 3-gate scoring engine.
+Regime-aware, multi-strategy trading agent for **Binance Futures (USDⓈ-M)** with a
+real-time Next.js dashboard. The agent dynamically screens coins, detects market
+regime, and activates the most suitable strategies from a pool of 6.
 
-## Features
+> ⚠️ **Pivot in progress.** This repo previously held a Laravel fundamental-screening
+> app. That code remains in git history (`git log`, commit `e5774c4` and earlier).
+> The project is being rebuilt as a TypeScript monorepo per
+> `liquidx-ai-agent-prd.md`.
 
-### Scoring Engine
-- **Gate 1 — Tokenomics & Emissions (35%)**: MC/FDV ratio, circulating/total supply, max supply, locked token percentage
-- **Gate 2 — Valuation Metrics (40%)**: Market cap tier, volume/MC ratio, FDV multiple, Mcap/TVL, P/S ratio, P/F ratio
-- **Gate 3 — Manipulation Detection (25%)**: Wash trading signal, order book depth, bid-ask symmetry, top holder concentration
-- **Verdict**: PASS (≥7.0) / WATCH (4.0–6.9) / FAIL (<4.0) / INCOMPLETE (<30% data)
-- Configurable gate weights via Settings
+## Status — Increment 1 (foundation + first vertical slice) ✅
 
-### Dashboard Analytics
-- Verdict distribution pie chart
-- Market cap tier breakdown
-- Score distribution histogram
-- Sector performance ranking (top 15 by avg score)
-- Top scorers and top volume tokens
+Built and tested so far:
 
-### Token Detail
-- **Summary Tab**: Auto-generated analysis — strengths, weaknesses, red flags in Bahasa Indonesia
-- **Score History**: Composite & gate score trend charts over time
-- **Valuation**: DeFi metrics from DefiLlama (TVL, fees, revenue, Mcap/TVL, P/S, P/F)
-- **Manipulation**: Holder concentration from Ethplorer (top 10/50 holder %, address breakdown)
-- **Momentum**: Sector momentum multiplier (0.85x–1.15x) based on narrative sector performance
-- **Investment Plan**: DCA/lump-sum planning with price zones
-- Add to watchlist directly from token detail
+- **Monorepo** — Turborepo + npm workspaces (`packages/shared`, `apps/agent`, `apps/web`)
+- **`@cryptogate/shared`** — types (candle/regime/strategy/trade/screener) + indicators
+  (ATR, EMA, RSI, Bollinger, ADX, VWAP, pivots, SMA) + session/math utils, with unit tests
+- **Agent** — Module 1 data feed (REST bootstrap + Binance kline WS), Module 3 regime
+  detector (composite score), **Strategy 1: SMC Sweep** (ported from the validated
+  Python backtest), a realistic backtest harness, and a minimal API + Socket.io server
+- **Web** — dark-theme dashboard overview wired to the agent over REST + Socket.io
+- **Infra** — Prisma schema (Postgres), docker-compose (Postgres/Redis/agent/web), `.env.example`
 
-### Other Features
-- Token discovery from CoinGecko trending categories
-- Watchlists with notes
-- Bulk screening (per watchlist or custom selection)
-- Price alerts with configurable conditions
-- Narrative sector mapping for peer comparison
-- Client-side pagination (10/50/100) with sortable columns
+Not yet built (next increments): strategies 2–6, coin screener (Module 2),
+strategy selector/aggregator, risk manager, execution engine, SQLite/Postgres
+journaling, Telegram, and dashboard pages 2–7. See the PRD's phase plan.
 
-## Tech Stack
+## Layout
+```
+packages/shared     # shared types + indicator library (reused by agent & web)
+apps/agent          # trading agent: data feed, regime, strategies, backtest, API/WS server
+apps/web            # Next.js dashboard
+```
 
-| Layer | Tech |
-|-------|------|
-| Frontend | React 19, Vite 8, Tailwind CSS 4, shadcn/ui, Recharts |
-| Backend | Laravel 12, PHP 8.2+ |
-| Database | PostgreSQL |
-| APIs | CoinGecko, DefiLlama, Ethplorer |
-
-## Setup
-
-### Prerequisites
-- PHP 8.2+
-- Composer
-- Node.js 20+
-- PostgreSQL
-
-### Backend
-
+## Quickstart
 ```bash
-cd backend
-cp .env.example .env
-composer install
-php artisan key:generate
-php artisan migrate
-php artisan db:seed   # seeds sector mappings
+npm install                      # installs all workspaces
+
+# run the full test suite (indicators + SMC strategy + backtest)
+npm test
+
+# backtest SMC on a symbol (needs outbound access to fapi.binance.com)
+npm run backtest -w @cryptogate/agent -- --symbol BTCUSDT --chart 15m --htf 4h
+#   offline:  ... -- --chart-csv chart.csv --htf-csv htf.csv --htf 4h
+
+# run the agent (IDLE by default; LIVE=1 connects the Binance feed)
+npm run dev -w @cryptogate/agent
+
+# run the dashboard
+npm run dev -w @cryptogate/web      # http://localhost:3000
 ```
 
-Configure API keys in `.env`:
-```
-COINGECKO_API_KEY=your_key
-ETHERSCAN_API_KEY=your_key
-```
+## Trading parameters (per PRD)
+20x leverage · 25% margin risk/trade · min R:R 1:2 · max 3 concurrent positions ·
+1–5 trades/day · 50% daily-loss circuit breaker.
 
-### Frontend
-
-```bash
-cd frontend
-npm install
-```
-
-### Running
-
-```bash
-# Terminal 1 — Backend
-cd backend
-php artisan serve
-
-# Terminal 2 — Frontend
-cd frontend
-npm run dev
-```
-
-App runs at `http://localhost:3002` (Vite proxies API calls to Laravel).
-
-### Scheduler (auto-refresh market data)
-
-```bash
-crontab -e
-# Add:
-* * * * * cd /path/to/backend && php artisan schedule:run >> /dev/null 2>&1
-```
-
-## API Endpoints
-
-### Tokens
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/tokens` | List all tokens (paginated) |
-| POST | `/api/tokens` | Add token by CoinGecko ID |
-| GET | `/api/tokens/{id}` | Token detail with scores |
-| POST | `/api/tokens/{id}/score` | Run scoring |
-| POST | `/api/tokens/{id}/refresh` | Refresh market data |
-| GET | `/api/tokens/{id}/score-history` | Score history over time |
-| POST | `/api/tokens/{id}/fetch-defi` | Fetch DeFi metrics |
-| POST | `/api/tokens/{id}/fetch-holders` | Fetch holder data |
-| GET | `/api/tokens/{id}/momentum` | Sector momentum |
-| GET | `/api/tokens/{id}/buy-zone` | Buy zone calculation |
-
-### Analytics
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/analytics/overview` | Dashboard analytics |
-| GET | `/api/analytics/sector-momentum` | Sector momentum overview |
-
-### Watchlists
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/watchlists` | List watchlists |
-| POST | `/api/watchlists` | Create watchlist |
-| POST | `/api/watchlists/{id}/tokens` | Add token to watchlist |
-
-### Screening
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/screening/run` | Run bulk screening |
-| GET | `/api/screening/status/{runId}` | Check screening status |
-
-### Other
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/discover/run` | Discover trending tokens |
-| GET/PUT | `/api/settings/weights` | Gate weights & momentum config |
-| GET | `/api/sectors` | Sector mappings |
-| GET/POST | `/api/alerts` | Price alerts |
-
-## Scoring Breakdown
-
-```
-Composite Score = (G1 × W1) + (G2 × W2) + (G3 × W3)
-
-Default weights: G1=35%, G2=40%, G3=25%
-
-If momentum mode ON:
-  Final Score = Composite × Momentum Multiplier (0.85–1.15)
-```
-
-Each metric scores 0–10. Gate score = average of available metrics.
-
-### Verdict Thresholds
-| Score | Verdict | Action |
-|-------|---------|--------|
-| 7.0–10.0 | PASS | Layak dipertimbangkan |
-| 4.0–6.9 | WATCH | Monitor, tunggu perbaikan |
-| 0.0–3.9 | FAIL | Hindari, risiko tinggi |
-
-## Project Structure
-
-```
-backend/
-├── app/
-│   ├── Http/Controllers/    # API controllers
-│   ├── Models/              # Eloquent models
-│   └── Services/            # Business logic
-│       ├── ScoringService        # 3-gate scoring engine
-│       ├── CoinGeckoService      # Market data
-│       ├── DefiLlamaService      # TVL, fees, revenue
-│       ├── EtherscanService      # Holder concentration
-│       ├── MomentumService       # Sector momentum
-│       └── BuyZoneService        # Buy zone calculation
-├── database/migrations/
-└── routes/api.php
-
-frontend/
-├── src/
-│   ├── components/
-│   │   ├── ui/              # shadcn/ui components
-│   │   └── tokens/          # Token-specific components
-│   ├── pages/
-│   │   ├── Dashboard.jsx    # Analytics + token list
-│   │   ├── TokenDetail.jsx  # Full token analysis
-│   │   ├── Watchlist.jsx
-│   │   ├── Screening.jsx
-│   │   ├── Alerts.jsx
-│   │   └── Settings.jsx
-│   └── lib/
-│       ├── api.js           # API client
-│       └── format.js        # Number formatting
-└── vite.config.js
-```
-
-## License
-
-Private project.
+## Safety
+High-risk system. Always start on **testnet** (`BINANCE_TESTNET=true`), then small
+capital. The circuit breaker and drawdown scaling are critical safety nets. Past
+backtest results do not guarantee future performance.

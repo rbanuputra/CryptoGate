@@ -1,0 +1,30 @@
+{
+  "name": "@cryptogate/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx \"test/**/*.test.ts\"",
+    "backtest": "tsx src/backtest/cli.ts",
+    "prisma:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@cryptogate/shared": "*",
+    "express": "4.21.2",
+    "socket.io": "4.8.1",
+    "ws": "8.18.0"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "tsx": "4.19.2",
+    "@types/node": "22.10.2",
+    "@types/express": "4.17.21",
+    "@types/ws": "8.5.13",
+    "prisma": "5.22.0"
+  }
+}

@@ -1,0 +1,122 @@
+// CryptoGate agent — PostgreSQL schema (Prisma)
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Trade {
+  id                   String    @id @default(cuid())
+  symbol               String
+  strategy             String
+  regime               String
+  direction            String
+  entryTime            DateTime
+  exitTime             DateTime?
+  entryPrice           Float
+  exitPrice            Float?
+  slPrice              Float
+  tp1Price             Float
+  tp2Price             Float
+  quantity             Float
+  notional             Float
+  pnlUsdt              Float?
+  pnlPct               Float?
+  rMultiple            Float?
+  exitType             String?
+  confidence           Float
+  multiStrategyConfirm Boolean   @default(false)
+  reasoning            String?
+  equityAfter          Float?
+  orderId              String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([symbol, entryTime])
+}
+
+model Signal {
+  id           String   @id @default(cuid())
+  symbol       String
+  strategy     String
+  direction    String
+  entryPrice   Float
+  stopLoss     Float
+  takeProfit1  Float
+  takeProfit2  Float
+  riskReward   Float
+  confidence   Float
+  score        Float
+  regime       String
+  status       String // 'taken' | 'rejected' | 'expired' | 'pending'
+  rejectReason String?
+  reasoning    String
+  timestamp    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([timestamp])
+}
+
+model EquitySnapshot {
+  id            String   @id @default(cuid())
+  timestamp     DateTime
+  equity        Float
+  openPnl       Float
+  drawdownPct   Float
+  positionCount Int
+  createdAt     DateTime @default(now())
+
+  @@index([timestamp])
+}
+
+model RegimeLog {
+  id               String   @id @default(cuid())
+  timestamp        DateTime
+  symbol           String
+  regime           String
+  confidence       Float
+  adx              Float
+  atrRatio         Float
+  bbWidth          Float
+  activeStrategies String // JSON array
+  createdAt        DateTime @default(now())
+
+  @@index([timestamp, symbol])
+}
+
+model ScreenerSnapshot {
+  id             String   @id @default(cuid())
+  timestamp      DateTime
+  watchlistSize  Int
+  activeScanList String // JSON array of MomentumScore
+  createdAt      DateTime @default(now())
+
+  @@index([timestamp])
+}
+
+model Config {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String // JSON stringified
+  updatedAt DateTime @updatedAt
+}
+
+model BacktestResult {
+  id            String   @id @default(cuid())
+  name          String
+  config        String
+  symbols       String
+  period        String
+  totalTrades   Int
+  winRate       Float
+  profitFactor  Float
+  totalReturn   Float
+  maxDrawdown   Float
+  sharpeRatio   Float
+  tradesJson    String
+  equityJson    String
+  createdAt     DateTime @default(now())
+}

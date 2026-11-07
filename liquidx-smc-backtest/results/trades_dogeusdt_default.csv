@@ -1,3 +1,0 @@
-trade_id,symbol,config,tf,entry_time,exit_time,direction,entry_type,entry_price,sl_price,tp1_price,tp2_price,exit_price,exit_type,pnl_dollar,r_multiple,equity_after,duration_hours,swept_level,swept_wick,zone_top,zone_bot,regime_factor,session,funding_cost
-1,DOGEUSDT,default,15M+4H,2024-04-12T09:15:00+00:00,2024-04-12T12:30:00+00:00,long,FVG,0.28892539,0.27747247,0.30610477,0.32328415,0.27733374,SL,-208.3558,-1.0418,9791.6442,3.25,0.283313,0.279074,0.286169,0.282145,1.0,london,0.0
-2,DOGEUSDT,default,15M+4H,2024-10-26T08:30:00+00:00,2024-10-26T10:15:00+00:00,long,FVG,0.37460521,0.36639851,0.38691526,0.39922531,0.36621531,SL,-210.8112,-1.0765,9580.833,1.75,0.372449,0.368772,0.368772,0.365604,1.0,london,0.0
