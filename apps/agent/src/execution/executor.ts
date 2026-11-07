@@ -72,5 +72,7 @@ export async function executeSignal(
     tp1Hit: false,
     slPrice: signal.stopLoss,
     status: "open",
+    realizedPnl: 0,
+    openedAt: signal.timestamp,
   };
 }

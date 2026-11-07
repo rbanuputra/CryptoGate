@@ -22,6 +22,16 @@ import {
   fetchFundingRate,
   fetchLongShortRatio,
 } from "./data/orderflow.js";
+import { InMemoryJournal } from "./monitoring/journal.js";
+import {
+  ConsoleNotifier,
+  TelegramNotifier,
+  MultiNotifier,
+  templates,
+  type Notifier,
+} from "./monitoring/telegram.js";
+import { TradeTracker } from "./execution/trade-tracker.js";
+import { UserDataStream } from "./execution/user-stream.js";
 import { aggregate, multiStrategyConfirm, type SignalHistoryEntry } from "./engine/aggregator.js";
 import { RiskManager, RISK_DEFAULT } from "./risk/manager.js";
 import { PositionManager } from "./execution/position-manager.js";
@@ -48,6 +58,17 @@ function buildExchangeClient(): ExchangeClient {
   }
   console.log("[agent] using PAPER exchange client (no live orders).");
   return new PaperExchangeClient();
+}
+
+function buildNotifier(): Notifier {
+  const targets: Notifier[] = [new ConsoleNotifier()];
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chat = process.env.TELEGRAM_CHAT_ID;
+  if (token && chat) {
+    targets.push(new TelegramNotifier(token, chat));
+    console.log("[agent] Telegram notifications enabled.");
+  }
+  return new MultiNotifier(targets);
 }
 
 async function main() {
@@ -97,8 +118,9 @@ async function main() {
   const risk = new RiskManager(RISK_DEFAULT, START_EQUITY);
   const positions = new PositionManager();
   const exchange = buildExchangeClient();
-  let equity = START_EQUITY;
-  let peakEquity = START_EQUITY;
+  const journal = new InMemoryJournal(); // swap for PrismaJournal(db) once Postgres is provisioned
+  const notifier = buildNotifier();
+  const tracker = new TradeTracker(START_EQUITY, positions, exchange, risk, journal, notifier);
 
   feed.onCandleClose((symbol, tf, buf) => {
     if (tf !== "15m") return;
@@ -106,6 +128,11 @@ async function main() {
     if (!htfBuf) return;
     const regime = detectRegime([...htfBuf.all()], [...buf.all()]);
     server.emit("regime_update", { symbol, ...regime });
+    void journal.recordRegime({
+      timestamp: regime.timestamp, symbol, regime: regime.regime, confidence: regime.confidence,
+      adx: regime.adx, atrRatio: regime.volatilityLevel, bbWidth: 0,
+      activeStrategies: [...registry.keys()],
+    });
 
     const ranked = aggregate({
       symbol,
@@ -127,14 +154,16 @@ async function main() {
       if (!top) return;
       const sig = top.signal;
       history.push({ symbol: sig.symbol, direction: sig.direction, strategy: sig.strategy, timestamp: sig.timestamp });
+      const multiConfirm = multiStrategyConfirm(sig, history, sig.timestamp);
       const decision = risk.evaluate(sig, {
-        equity,
-        peakEquity,
+        equity: tracker.equity,
+        peakEquity: tracker.peakEquity,
         openPositions: positions.openLike(),
-        multiConfirm: multiStrategyConfirm(sig, history, sig.timestamp),
+        multiConfirm,
         now: sig.timestamp,
       });
       server.emit("signal_generated", { ...sig, score: top.score, approved: decision.approved, reason: decision.reason });
+      void journal.recordSignal(sig, decision.approved ? "taken" : "rejected", top.score, decision.reason);
       console.log(`[signal] ${sig.symbol} ${sig.direction} ${sig.strategy} score=${top.score.toFixed(2)} ` +
         `-> ${decision.approved ? "TAKE" : "REJECT: " + decision.reason}`);
       if (!decision.approved || !decision.positionSize) return;
@@ -143,6 +172,7 @@ async function main() {
         positions.add(pos);
         risk.onOpen();
         server.emit("trade_opened", { symbol: pos.symbol, direction: pos.direction, size: pos.size, entry: sig.entryPrice });
+        await notifier.send(templates.entry(sig, pos.size.quantity, pos.size.notional));
         console.log(`[exec] opened ${pos.symbol} ${pos.direction} qty=${pos.size.quantity}`);
       } catch (e) {
         console.error(`[exec] failed ${sig.symbol}:`, e instanceof Error ? e.message : e);
@@ -156,6 +186,20 @@ async function main() {
     await pollOrderFlow();
     setInterval(() => void pollOrderFlow(), 5 * 60 * 1000);
     feed.connect();
+
+    const key = process.env.BINANCE_API_KEY;
+    if (key) {
+      const userStream = new UserDataStream({ apiKey: key, testnet: process.env.BINANCE_TESTNET !== "false" });
+      userStream.onEvent((ev) => {
+        if (ev.type !== "fill") return;
+        void tracker.processFill(ev).then(() => {
+          server.emit("trade_updated", { symbol: ev.symbol, orderId: ev.orderId, status: ev.status });
+          server.emit("equity_update", tracker.snapshot());
+        });
+      });
+      await userStream.connect();
+      console.log("[agent] user data stream connected (fill detection active).");
+    }
     console.log("[agent] live feed connected.");
   } else {
     console.log("[agent] started in IDLE mode (set LIVE=1 to connect Binance feed).");

@@ -14,6 +14,9 @@ export interface ManagedPosition {
   tp1Hit: boolean;
   slPrice: number;
   status: "open" | "closed";
+  /** realized PnL accumulated from partial fills so far */
+  realizedPnl: number;
+  openedAt: number;
 }
 
 export function exitSide(direction: Direction): OrderSide {

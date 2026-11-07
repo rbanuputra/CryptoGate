@@ -9,7 +9,7 @@ regime, and activates the most suitable strategies from a pool of 6.
 > The project is being rebuilt as a TypeScript monorepo per
 > `liquidx-ai-agent-prd.md`.
 
-## Status ✅ (36 tests passing)
+## Status ✅ (43 tests passing)
 
 **Increment 1 — foundation + first vertical slice:**
 - **Monorepo** — Turborepo + npm workspaces (`packages/shared`, `apps/agent`, `apps/web`)
@@ -60,9 +60,19 @@ has a real pool to rank and multi-confirm across.
   cascade shows exhaustion (RSI extreme + OI stabilising); half size
 - Order flow threaded through the aggregator → all **6 strategies** now registered
 
-Not yet built (next increments): user-data-stream fill detection + live equity/position
-updates, journaling to Postgres (Module 9), Telegram alerts (Module 9), and dashboard
-pages 2–7. See the PRD's phase plan.
+**Increment 6 — fills, journaling & notifications (Phase 4 + Module 9):**
+- **User data stream** — `listenKey` lifecycle + socket, with a pure `parseUserDataMessage`
+  decoder for `ORDER_TRADE_UPDATE` / `ACCOUNT_UPDATE`
+- **Trade tracker** — fills drive the lifecycle: realize PnL, move SL→breakeven on TP1,
+  record the closed Trade, update equity/drawdown, feed the risk circuit breaker
+- **Module 9 Journal** — `Journal` port with `InMemoryJournal` + a `PrismaJournal`
+  (inject a Postgres client); signals, trades, equity and regime are persisted
+- **Notifications** — `Notifier` port with Telegram + console + fan-out, and trade-event
+  templates (entry / TP1 / TP2 / SL / closed / circuit-breaker)
+
+The agent backend is now functional end-to-end in paper mode (signal → risk → execute →
+fill → journal + notify). Remaining: dashboard pages 2–7 (Phase 6–7), a live Prisma/Postgres
+wiring, and the backtest-lab API. See the PRD's phase plan.
 
 ## Layout
 ```
