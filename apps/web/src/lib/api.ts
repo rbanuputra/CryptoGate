@@ -2,6 +2,8 @@ import type {
   AgentStatusDto,
   AgentConfigDto,
   AgentControlAction,
+  BacktestRequestDto,
+  BacktestResultDto,
   EquityPointDto,
   PositionView,
   RegimeDto,
@@ -42,6 +44,16 @@ export const api = {
   },
   async closePosition(symbol: string) {
     const res = await fetch(`${AGENT_URL}/api/position/${symbol}/close`, { method: "POST" });
+    return res.json();
+  },
+  async runBacktest(req: BacktestRequestDto): Promise<BacktestResultDto> {
+    const res = await fetch(`${AGENT_URL}/api/backtest/run`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      throw new Error((err as { error: string }).error ?? `HTTP ${res.status}`);
+    }
     return res.json();
   },
 };

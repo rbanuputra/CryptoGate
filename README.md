@@ -9,7 +9,7 @@ regime, and activates the most suitable strategies from a pool of 6.
 > The project is being rebuilt as a TypeScript monorepo per
 > `liquidx-ai-agent-prd.md`.
 
-## Status ✅ (43 tests passing · dashboard builds)
+## Status ✅ (43 tests passing · dashboard builds · 9 routes)
 
 **Increment 1 — foundation + first vertical slice:**
 - **Monorepo** — Turborepo + npm workspaces (`packages/shared`, `apps/agent`, `apps/web`)
@@ -84,8 +84,20 @@ fill → journal + notify).
   toggles, hot-reloaded via `PUT /api/config`)
 - Run-state (running/paused/stopped) + per-strategy toggles now gate live trading
 
-Remaining: live Prisma/Postgres wiring, Backtest Lab page + API, equity-curve & regime
-charts (lightweight-charts), and NextAuth login. See the PRD's phase plan.
+**Increment 8 — charts, Backtest Lab & Prisma wiring:**
+- **Charts page** — equity curve (Recharts AreaChart), drawdown chart, and colour-coded
+  regime timeline (per-coin filter), all live-polling the agent
+- **Backtest Lab page** — form-driven SMC Sweep backtest (symbol, TF, risk params) via
+  `POST /api/backtest/run`; results show stats grid, equity curve, and full trade list
+- **Prisma/Postgres wiring** — `getPrismaClient()` auto-detects `DATABASE_URL`; when
+  Postgres is available the agent writes to both Prisma (persistent) and in-memory
+  (dashboard) journals simultaneously. Without `DATABASE_URL` it falls back to
+  in-memory only, zero-config
+- **Dependencies** — Recharts 2.12 (web), @prisma/client 5.22 (agent)
+- **Nav** — 8 links: Overview, Charts, Screener, Trades, Strategies, Signals, Backtest,
+  Settings
+
+Remaining: NextAuth login. See the PRD's phase plan.
 
 ## Run the dashboard
 ```bash

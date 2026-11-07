@@ -36,7 +36,8 @@ import {
   fetchFundingRate,
   fetchLongShortRatio,
 } from "./data/orderflow.js";
-import { InMemoryJournal } from "./monitoring/journal.js";
+import { InMemoryJournal, PrismaJournal, type Journal } from "./monitoring/journal.js";
+import { getPrismaClient } from "./data/db.js";
 import {
   ConsoleNotifier,
   TelegramNotifier,
@@ -126,7 +127,21 @@ async function main() {
   const risk = new RiskManager(RISK_DEFAULT, START_EQUITY);
   const positions = new PositionManager();
   const exchange = buildExchangeClient();
-  const journal = new InMemoryJournal(); // swap for PrismaJournal(db) once Postgres is provisioned
+  const prisma = await getPrismaClient();
+  const memJournal = new InMemoryJournal();
+  const journal: Journal & { trades: typeof memJournal.trades; signals: typeof memJournal.signals; equity: typeof memJournal.equity; regimes: typeof memJournal.regimes } =
+    prisma ? Object.assign(new PrismaJournal(prisma), { trades: memJournal.trades, signals: memJournal.signals, equity: memJournal.equity, regimes: memJournal.regimes }) : memJournal;
+  if (prisma) {
+    const origSignal = journal.recordSignal.bind(journal);
+    journal.recordSignal = async (...args) => { memJournal.recordSignal(...args); return origSignal(...args); };
+    const origTrade = journal.recordTrade.bind(journal);
+    journal.recordTrade = async (...args) => { memJournal.recordTrade(...args); return origTrade(...args); };
+    const origEquity = journal.recordEquity.bind(journal);
+    journal.recordEquity = async (...args) => { memJournal.recordEquity(...args); return origEquity(...args); };
+    const origRegime = journal.recordRegime.bind(journal);
+    journal.recordRegime = async (...args) => { memJournal.recordRegime(...args); return origRegime(...args); };
+    console.log("[agent] Prisma journal active — data persisted to Postgres + in-memory for dashboard.");
+  }
   const notifier = buildNotifier();
   const tracker = new TradeTracker(START_EQUITY, positions, exchange, risk, journal, notifier);
 

@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation";
 
 const LINKS: Array<[string, string]> = [
   ["/", "Overview"],
+  ["/charts", "Charts"],
   ["/screener", "Screener"],
   ["/trades", "Trades"],
   ["/strategies", "Strategies"],
   ["/signals", "Signals"],
+  ["/backtest", "Backtest"],
   ["/settings", "Settings"],
 ];
 

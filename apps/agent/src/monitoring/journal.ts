@@ -56,10 +56,22 @@ export class InMemoryJournal implements Journal {
 
 /** Minimal shape of the Prisma client this journal needs (avoids a hard dep). */
 export interface PrismaLike {
-  trade: { create(args: { data: Record<string, unknown> }): Promise<unknown> };
-  signal: { create(args: { data: Record<string, unknown> }): Promise<unknown> };
-  equitySnapshot: { create(args: { data: Record<string, unknown> }): Promise<unknown> };
-  regimeLog: { create(args: { data: Record<string, unknown> }): Promise<unknown> };
+  trade: {
+    create(args: { data: Record<string, unknown> }): Promise<unknown>;
+    findMany(args?: { orderBy?: Record<string, string>; take?: number }): Promise<Record<string, unknown>[]>;
+  };
+  signal: {
+    create(args: { data: Record<string, unknown> }): Promise<unknown>;
+    findMany(args?: { orderBy?: Record<string, string>; take?: number }): Promise<Record<string, unknown>[]>;
+  };
+  equitySnapshot: {
+    create(args: { data: Record<string, unknown> }): Promise<unknown>;
+    findMany(args?: { orderBy?: Record<string, string>; take?: number }): Promise<Record<string, unknown>[]>;
+  };
+  regimeLog: {
+    create(args: { data: Record<string, unknown> }): Promise<unknown>;
+    findMany(args?: { orderBy?: Record<string, string>; take?: number }): Promise<Record<string, unknown>[]>;
+  };
 }
 
 export class PrismaJournal implements Journal {

@@ -90,3 +90,47 @@ export interface TradesResponse {
     totalPnl: number;
   };
 }
+
+export interface BacktestRequestDto {
+  symbol: string;
+  chartTf: string;
+  htfTf: string;
+  startEquity: number;
+  riskPct: number;
+  slippagePct: number;
+  takerFeePct: number;
+}
+
+export interface BacktestTradeDto {
+  id: number;
+  direction: "long" | "short";
+  entryType: string;
+  entryTime: number;
+  exitTime: number;
+  entryPrice: number;
+  exitPrice: number;
+  exitType: string;
+  pnl: number;
+  rMultiple: number;
+  equityAfter: number;
+}
+
+export interface BacktestStatsDto {
+  totalTrades: number;
+  winRate: number;
+  profitFactor: number;
+  totalReturnPct: number;
+  maxDrawdownPct: number;
+  avgR: number;
+}
+
+export interface BacktestResultDto {
+  symbol: string;
+  chartTf: string;
+  htfTf: string;
+  trades: BacktestTradeDto[];
+  equityCurve: Array<{ time: number; equity: number }>;
+  stats: BacktestStatsDto;
+  startEquity: number;
+  finalEquity: number;
+}

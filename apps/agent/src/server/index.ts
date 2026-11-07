@@ -10,6 +10,8 @@ import type {
   AgentConfigDto,
   AgentControlAction,
   AgentStatusDto,
+  BacktestRequestDto,
+  BacktestResultDto,
   EquityPointDto,
   PositionView,
   RegimeDto,
@@ -17,7 +19,10 @@ import type {
   SignalRecordDto,
   StrategyStat,
   TradesResponse,
+  Timeframe,
 } from "@cryptogate/shared";
+import { backtestSmc, BACKTEST_DEFAULT } from "../backtest/runner.js";
+import { fetchKlines, loadCsv } from "../backtest/data-loader.js";
 
 export interface ServerDeps {
   status(): AgentStatusDto;
@@ -75,6 +80,43 @@ export function buildServer(deps: ServerDeps): ServerHandle {
 
   app.post("/api/position/:symbol/close", async (req, res) => {
     res.json(await deps.closePosition(req.params.symbol));
+  });
+
+  app.post("/api/backtest/run", async (req, res) => {
+    try {
+      const body = req.body as Partial<BacktestRequestDto>;
+      const symbol = body.symbol ?? "BTCUSDT";
+      const chartTf = (body.chartTf ?? "15m") as Timeframe;
+      const htfTf = (body.htfTf ?? "4h") as Timeframe;
+      const startEquity = body.startEquity ?? BACKTEST_DEFAULT.startEquity;
+
+      const chart = await fetchKlines(symbol, chartTf, { limit: 1500 });
+      const htf = await fetchKlines(symbol, htfTf, { limit: 1000 });
+
+      const cfg = {
+        ...BACKTEST_DEFAULT,
+        startEquity,
+        riskPct: body.riskPct ?? BACKTEST_DEFAULT.riskPct,
+        slippagePct: body.slippagePct ?? BACKTEST_DEFAULT.slippagePct,
+        takerFeePct: body.takerFeePct ?? BACKTEST_DEFAULT.takerFeePct,
+      };
+      const result = backtestSmc(chart, htf, htfTf, cfg);
+
+      const equityCurve = result.trades.map((t) => ({ time: t.exitTime, equity: t.equityAfter }));
+      equityCurve.unshift({ time: chart[0]?.openTime ?? 0, equity: startEquity });
+
+      const dto: BacktestResultDto = {
+        symbol, chartTf, htfTf,
+        trades: result.trades,
+        equityCurve,
+        stats: result.stats,
+        startEquity: result.startEquity,
+        finalEquity: result.finalEquity,
+      };
+      res.json(dto);
+    } catch (e) {
+      res.status(500).json({ error: e instanceof Error ? e.message : "backtest failed" });
+    }
   });
 
   const http = createServer(app);
