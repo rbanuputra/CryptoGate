@@ -9,10 +9,9 @@ regime, and activates the most suitable strategies from a pool of 6.
 > The project is being rebuilt as a TypeScript monorepo per
 > `liquidx-ai-agent-prd.md`.
 
-## Status — Increment 1 (foundation + first vertical slice) ✅
+## Status ✅ (20 tests passing)
 
-Built and tested so far:
-
+**Increment 1 — foundation + first vertical slice:**
 - **Monorepo** — Turborepo + npm workspaces (`packages/shared`, `apps/agent`, `apps/web`)
 - **`@cryptogate/shared`** — types (candle/regime/strategy/trade/screener) + indicators
   (ATR, EMA, RSI, Bollinger, ADX, VWAP, pivots, SMA) + session/math utils, with unit tests
@@ -22,9 +21,17 @@ Built and tested so far:
 - **Web** — dark-theme dashboard overview wired to the agent over REST + Socket.io
 - **Infra** — Prisma schema (Postgres), docker-compose (Postgres/Redis/agent/web), `.env.example`
 
-Not yet built (next increments): strategies 2–6, coin screener (Module 2),
-strategy selector/aggregator, risk manager, execution engine, SQLite/Postgres
-journaling, Telegram, and dashboard pages 2–7. See the PRD's phase plan.
+**Increment 2 — orchestrator brain:**
+- **Module 2 Coin Screener** — Layer 1 universe filter, Layer 2 momentum scorer,
+  Layer 3 pre-trade filter (all pure + unit-tested)
+- **Module 5 Strategy Selector** — regime→strategy map, direction policies, composite
+  signal scoring (weights, R:R bonus, multi-confirm, correlation/daily-loss penalties)
+- **Module 6 Signal Aggregator** — runs active strategies, scores/filters/dedupes/ranks;
+  wired into the agent loop on each 15M close
+
+Not yet built (next increments): strategies 2–6, risk manager + position sizing,
+execution engine (live orders), journaling (Postgres), Telegram, dashboard pages 2–7.
+See the PRD's phase plan.
 
 ## Layout
 ```

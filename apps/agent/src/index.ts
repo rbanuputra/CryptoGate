@@ -6,10 +6,12 @@
  * blocked (or no API keys yet), run the backtest CLI instead:
  *   npm run backtest -w @cryptogate/agent -- --symbol BTCUSDT
  */
-import type { Timeframe } from "@cryptogate/shared";
+import type { StrategyName, Timeframe } from "@cryptogate/shared";
 import { DataFeed } from "./data/feed.js";
 import { detectRegime } from "./regime/detector.js";
 import { SmcSweepStrategy } from "./strategies/smc-strategy.js";
+import type { Strategy } from "./strategies/base.js";
+import { aggregate, type SignalHistoryEntry } from "./engine/aggregator.js";
 import { buildServer, type AgentStatus } from "./server/index.js";
 
 const SYMBOLS = (process.env.SYMBOLS ?? "BTCUSDT,ETHUSDT,SOLUSDT").split(",");
@@ -29,26 +31,35 @@ async function main() {
 
   const timeframes: Timeframe[] = ["15m", "4h"];
   const feed = new DataFeed(SYMBOLS, timeframes);
-  const strategy = new SmcSweepStrategy();
+
+  // Strategy registry — only SMC Sweep implemented so far; others land next.
+  const registry = new Map<StrategyName, Strategy>([["smc_sweep", new SmcSweepStrategy()]]);
+  const history: SignalHistoryEntry[] = [];
 
   feed.onCandleClose((symbol, tf, buf) => {
     if (tf !== "15m") return;
     const htfBuf = feed.buffer(symbol, "4h");
     if (!htfBuf) return;
     const regime = detectRegime([...htfBuf.all()], [...buf.all()]);
-    const signals = strategy.scan({
+    server.emit("regime_update", { symbol, ...regime });
+
+    const ranked = aggregate({
       symbol,
       chart: [...buf.all()],
       htf: [...htfBuf.all()],
       htfTf: "4h",
       regime,
       signalTtlMs: SIGNAL_TTL_MS,
+      registry,
+      history,
     });
-    server.emit("regime_update", { symbol, ...regime });
-    for (const sig of signals) {
-      console.log(`[signal] ${sig.symbol} ${sig.direction} ${sig.strategy} @ ${sig.entryPrice} :: ${sig.reasoning}`);
-      server.emit("signal_generated", sig);
+    for (const { signal: sig, score } of ranked) {
+      history.push({ symbol: sig.symbol, direction: sig.direction, strategy: sig.strategy, timestamp: sig.timestamp });
+      console.log(`[signal] ${sig.symbol} ${sig.direction} ${sig.strategy} score=${score.toFixed(2)} @ ${sig.entryPrice} :: ${sig.reasoning}`);
+      server.emit("signal_generated", { ...sig, score });
     }
+    // keep history bounded
+    if (history.length > 500) history.splice(0, history.length - 500);
   });
 
   if (process.env.LIVE === "1") {
