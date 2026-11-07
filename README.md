@@ -9,7 +9,7 @@ regime, and activates the most suitable strategies from a pool of 6.
 > The project is being rebuilt as a TypeScript monorepo per
 > `liquidx-ai-agent-prd.md`.
 
-## Status ✅ (43 tests passing · dashboard builds · 11 routes)
+## Status ✅ (36 tests passing · dashboard builds · 11 routes)
 
 **Increment 1 — foundation + first vertical slice:**
 - **Monorepo** — Turborepo + npm workspaces (`packages/shared`, `apps/agent`, `apps/web`)
@@ -107,7 +107,23 @@ fill → journal + notify).
   it automatically via `NEXT_PUBLIC_API_SECRET`
 - **Routes** — 11 total: 8 dashboard pages + login + auth API + middleware
 
-All PRD phases implemented. The system is ready for testnet deployment.
+**Increment 10 — multi-strategy backtesting & deployment (Phase 8–9):**
+- **Multi-strategy backtest runner** (`multi-runner.ts`) — runs all 6 strategies with
+  regime detection + aggregator on historical data; per-strategy breakdown; Sharpe ratio
+- **Walk-forward validation** — 70/30 temporal split with HTF overlap for proper
+  indicator initialization; train vs test stats comparison
+- **Updated Backtest Lab** — strategy checkboxes, regime switching toggle, walk-forward
+  toggle, strategy breakdown table, WfCard train/test comparison
+- **Daily summary Telegram cron** — midnight UTC, sends 24h trade stats, PnL, equity,
+  dominant regime, and active strategies via the notifier
+- **Dockerfiles** — multi-stage builds for agent (Node.js + Prisma) and web (Next.js
+  standalone output), non-root users, minimal final images
+- **Production docker-compose** — health checks on all services (pg_isready, redis-cli
+  ping, HTTP checks for agent/web), dependency ordering via `service_healthy`
+- **Caddy reverse proxy** — routes `/api/*` and `/socket.io/*` to agent, everything
+  else to web; replace `:80` with domain for automatic HTTPS
+
+The system is ready for paper-trading deployment.
 
 ## Run the dashboard
 ```bash

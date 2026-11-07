@@ -99,6 +99,9 @@ export interface BacktestRequestDto {
   riskPct: number;
   slippagePct: number;
   takerFeePct: number;
+  strategies?: string[] | "all";
+  useRegimeSwitching?: boolean;
+  walkForward?: boolean;
 }
 
 export interface BacktestTradeDto {
@@ -122,6 +125,7 @@ export interface BacktestStatsDto {
   totalReturnPct: number;
   maxDrawdownPct: number;
   avgR: number;
+  sharpeRatio?: number;
 }
 
 export interface BacktestResultDto {
@@ -133,4 +137,7 @@ export interface BacktestResultDto {
   stats: BacktestStatsDto;
   startEquity: number;
   finalEquity: number;
+  strategyBreakdown?: Record<string, { trades: number; winRate: number; pf: number; pnl: number }>;
+  regimeLog?: Array<{ time: number; regime: string }>;
+  walkForward?: { train: BacktestStatsDto; test: BacktestStatsDto };
 }

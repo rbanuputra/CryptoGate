@@ -22,6 +22,7 @@ import type {
   Timeframe,
 } from "@cryptogate/shared";
 import { backtestSmc, BACKTEST_DEFAULT } from "../backtest/runner.js";
+import { backtestMulti, walkForwardSplit, MULTI_BT_DEFAULT, type MultiBacktestConfig } from "../backtest/multi-runner.js";
 import { fetchKlines, loadCsv } from "../backtest/data-loader.js";
 
 export interface ServerDeps {
@@ -100,30 +101,50 @@ export function buildServer(deps: ServerDeps): ServerHandle {
       const symbol = body.symbol ?? "BTCUSDT";
       const chartTf = (body.chartTf ?? "15m") as Timeframe;
       const htfTf = (body.htfTf ?? "4h") as Timeframe;
-      const startEquity = body.startEquity ?? BACKTEST_DEFAULT.startEquity;
+      const startEquity = body.startEquity ?? MULTI_BT_DEFAULT.startEquity;
+      const strategies = body.strategies ?? "all";
+      const useRegime = body.useRegimeSwitching !== false;
+      const doWalkForward = body.walkForward === true;
 
       const chart = await fetchKlines(symbol, chartTf, { limit: 1500 });
       const htf = await fetchKlines(symbol, htfTf, { limit: 1000 });
 
-      const cfg = {
-        ...BACKTEST_DEFAULT,
+      const multiCfg = {
+        ...MULTI_BT_DEFAULT,
         startEquity,
-        riskPct: body.riskPct ?? BACKTEST_DEFAULT.riskPct,
-        slippagePct: body.slippagePct ?? BACKTEST_DEFAULT.slippagePct,
-        takerFeePct: body.takerFeePct ?? BACKTEST_DEFAULT.takerFeePct,
+        riskPct: body.riskPct ?? MULTI_BT_DEFAULT.riskPct,
+        slippagePct: body.slippagePct ?? MULTI_BT_DEFAULT.slippagePct,
+        takerFeePct: body.takerFeePct ?? MULTI_BT_DEFAULT.takerFeePct,
+        strategies: strategies as MultiBacktestConfig["strategies"],
+        useRegimeSwitching: useRegime,
+        htfTf,
       };
-      const result = backtestSmc(chart, htf, htfTf, cfg);
 
-      const equityCurve = result.trades.map((t) => ({ time: t.exitTime, equity: t.equityAfter }));
-      equityCurve.unshift({ time: chart[0]?.openTime ?? 0, equity: startEquity });
+      const result = backtestMulti(chart, htf, multiCfg);
+
+      let wf: { train: typeof result.stats; test: typeof result.stats } | undefined;
+      if (doWalkForward) {
+        const split = walkForwardSplit(chart, htf, 0.7);
+        const trainRes = backtestMulti(split.train.chart, split.train.htf, multiCfg);
+        const testRes = backtestMulti(split.test.chart, split.test.htf, multiCfg);
+        wf = { train: trainRes.stats, test: testRes.stats };
+      }
 
       const dto: BacktestResultDto = {
         symbol, chartTf, htfTf,
-        trades: result.trades,
-        equityCurve,
-        stats: result.stats,
+        trades: result.trades.map((t) => ({
+          id: t.id, direction: t.direction, entryType: t.strategy,
+          entryTime: t.entryTime, exitTime: t.exitTime,
+          entryPrice: t.entryPrice, exitPrice: t.exitPrice,
+          exitType: t.exitType, pnl: t.pnl, rMultiple: t.rMultiple, equityAfter: t.equityAfter,
+        })),
+        equityCurve: result.equityCurve,
+        stats: { ...result.stats, sharpeRatio: result.stats.sharpeRatio } as BacktestResultDto["stats"],
         startEquity: result.startEquity,
         finalEquity: result.finalEquity,
+        strategyBreakdown: result.strategyBreakdown,
+        regimeLog: result.regimeLog,
+        walkForward: wf,
       };
       res.json(dto);
     } catch (e) {

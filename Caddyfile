@@ -1,0 +1,12 @@
+# Replace :80 with your domain (e.g. liquidx.example.com) for automatic HTTPS
+:80 {
+	handle /api/* {
+		reverse_proxy agent:4000
+	}
+	handle /socket.io/* {
+		reverse_proxy agent:4000
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+}

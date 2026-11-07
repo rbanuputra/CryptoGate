@@ -328,6 +328,54 @@ async function main() {
     }
   });
 
+  // Daily summary cron — fires once per 24h at midnight UTC
+  function scheduleDailySummary() {
+    const now = new Date();
+    const nextMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
+    const msUntil = nextMidnight.getTime() - now.getTime();
+    setTimeout(() => {
+      void sendDailySummary();
+      setInterval(() => void sendDailySummary(), 24 * 60 * 60 * 1000);
+    }, msUntil);
+    console.log(`[agent] daily summary scheduled — next in ${(msUntil / 3_600_000).toFixed(1)}h`);
+  }
+
+  async function sendDailySummary() {
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const dayTrades = journal.trades.filter((t) => (t.exitTime ?? 0) >= dayAgo);
+    const wins = dayTrades.filter((t) => (t.pnlUsdt ?? 0) > 0);
+    const losses = dayTrades.filter((t) => (t.pnlUsdt ?? 0) < 0);
+    const dailyPnl = dayTrades.reduce((s, t) => s + (t.pnlUsdt ?? 0), 0);
+    const snap = tracker.snapshot();
+    const dailyPnlPct = snap.equity > 0 ? (dailyPnl / snap.equity) * 100 : 0;
+
+    const regimes = [...regimePerCoin.values()];
+    const regimeCounts = new Map<string, number>();
+    for (const r of regimes) regimeCounts.set(r.regime, (regimeCounts.get(r.regime) ?? 0) + 1);
+    let dominantRegime = "unknown";
+    let maxCount = 0;
+    for (const [regime, count] of regimeCounts) {
+      if (count > maxCount) { dominantRegime = regime; maxCount = count; }
+    }
+
+    const activeStrategies = [...registry.keys()].filter((k) => config.strategiesEnabled[k] !== false);
+
+    const msg = templates.dailySummary({
+      totalTrades: dayTrades.length,
+      wins: wins.length,
+      losses: losses.length,
+      dailyPnl,
+      dailyPnlPct,
+      equity: snap.equity,
+      dominantRegime,
+      activeStrategies,
+    });
+    await notifier.send(msg);
+    console.log("[agent] daily summary sent.");
+  }
+
+  scheduleDailySummary();
+
   if (process.env.LIVE === "1") {
     console.log("[agent] bootstrapping historical data...");
     await feed.bootstrap();

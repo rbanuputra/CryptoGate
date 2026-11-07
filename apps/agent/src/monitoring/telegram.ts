@@ -39,6 +39,21 @@ export const templates = {
   drawdown(pct: number, mult: number): string {
     return `⚠️ Drawdown ${pct.toFixed(1)}% — position size reduced to ${mult}x`;
   },
+  dailySummary(p: {
+    totalTrades: number; wins: number; losses: number;
+    dailyPnl: number; dailyPnlPct: number;
+    equity: number; dominantRegime: string; activeStrategies: string[];
+  }): string {
+    const sign = p.dailyPnl >= 0 ? "+" : "";
+    return (
+      `📅 Daily Summary\n` +
+      `Trades: ${p.totalTrades} | Win: ${p.wins} | Loss: ${p.losses}\n` +
+      `PnL: ${sign}$${p.dailyPnl.toFixed(2)} (${sign}${p.dailyPnlPct.toFixed(2)}%)\n` +
+      `Equity: $${p.equity.toFixed(2)}\n` +
+      `Regime: ${p.dominantRegime}\n` +
+      `Strategies: ${p.activeStrategies.join(", ")}`
+    );
+  },
 };
 
 export class ConsoleNotifier implements Notifier {

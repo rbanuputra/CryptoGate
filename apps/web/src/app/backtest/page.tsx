@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { BacktestRequestDto, BacktestResultDto } from "@cryptogate/shared";
+import type { BacktestRequestDto, BacktestResultDto, BacktestStatsDto } from "@cryptogate/shared";
 import { api } from "../../lib/api";
 import { fmtUsd, fmtTime, cls } from "../../lib/format";
 import { EquityChart } from "../../components/equity-chart";
+
+const ALL_STRATEGIES = ["smc_sweep", "momentum_breakout", "mean_reversion", "oi_divergence", "vwap_bounce", "liquidation_fade"] as const;
 
 const DEFAULTS: BacktestRequestDto = {
   symbol: "BTCUSDT",
@@ -14,6 +16,9 @@ const DEFAULTS: BacktestRequestDto = {
   riskPct: 0.02,
   slippagePct: 0.0002,
   takerFeePct: 0.0006,
+  strategies: "all",
+  useRegimeSwitching: true,
+  walkForward: false,
 };
 
 export default function BacktestLab() {
@@ -24,6 +29,20 @@ export default function BacktestLab() {
 
   function set<K extends keyof BacktestRequestDto>(k: K, v: BacktestRequestDto[K]) {
     setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  function toggleStrategy(name: string) {
+    setForm((f) => {
+      const current = f.strategies === "all" ? [...ALL_STRATEGIES] : [...(f.strategies ?? [])];
+      const idx = current.indexOf(name);
+      if (idx >= 0) current.splice(idx, 1);
+      else current.push(name);
+      return { ...f, strategies: current.length === ALL_STRATEGIES.length ? "all" : current };
+    });
+  }
+
+  function isStratActive(name: string) {
+    return form.strategies === "all" || (form.strategies ?? []).includes(name);
   }
 
   async function run() {
@@ -45,7 +64,7 @@ export default function BacktestLab() {
   return (
     <main className="wrap">
       <h1>Backtest Lab</h1>
-      <p className="muted" style={{ marginTop: 0 }}>Run the SMC Sweep strategy on historical data from Binance. Requires outbound API access.</p>
+      <p className="muted" style={{ marginTop: 0 }}>Run all 6 strategies with regime switching on historical data. Requires outbound API access.</p>
 
       <div className="card">
         <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
@@ -67,6 +86,28 @@ export default function BacktestLab() {
           <Field label="Slippage %" type="number" value={form.slippagePct} step="0.0001" onChange={(v) => set("slippagePct", Number(v))} />
           <Field label="Taker Fee %" type="number" value={form.takerFeePct} step="0.0001" onChange={(v) => set("takerFeePct", Number(v))} />
         </div>
+
+        <h3 style={{ margin: "14px 0 6px", fontSize: 13 }}>Strategies</h3>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {ALL_STRATEGIES.map((name) => (
+            <label key={name} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+              <input type="checkbox" checked={isStratActive(name)} onChange={() => toggleStrategy(name)} />
+              {name.replace(/_/g, " ")}
+            </label>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 16, marginTop: 10, fontSize: 12 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <input type="checkbox" checked={form.useRegimeSwitching !== false} onChange={(e) => set("useRegimeSwitching", e.target.checked)} />
+            Regime switching
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <input type="checkbox" checked={form.walkForward === true} onChange={(e) => set("walkForward", e.target.checked)} />
+            Walk-forward (70/30 split)
+          </label>
+        </div>
+
         <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center" }}>
           <button className="btn primary" onClick={run} disabled={running}>{running ? "Running…" : "Run Backtest"}</button>
           {error && <span className="bad">{error}</span>}
@@ -83,22 +124,52 @@ export default function BacktestLab() {
             <Stat k="Return" v={`${s.totalReturnPct.toFixed(2)}%`} c={cls(s.totalReturnPct)} />
             <Stat k="Max DD" v={`${s.maxDrawdownPct.toFixed(2)}%`} c="bad" />
             <Stat k="Avg R" v={s.avgR.toFixed(3)} c={cls(s.avgR)} />
+            <Stat k="Sharpe" v={(s.sharpeRatio ?? 0).toFixed(3)} c={cls(s.sharpeRatio ?? 0)} />
             <Stat k="Final Equity" v={fmtUsd(result.finalEquity)} c={cls(result.finalEquity - result.startEquity)} />
           </div>
 
           <h2>Equity Curve</h2>
           <div className="card">
-            <EquityChart
-              data={result.equityCurve.map((p) => ({ timestamp: p.time, equity: p.equity }))}
-              startEquity={result.startEquity}
-            />
+            <EquityChart data={result.equityCurve.map((p) => ({ timestamp: p.time, equity: p.equity }))} startEquity={result.startEquity} />
           </div>
+
+          {result.strategyBreakdown && Object.keys(result.strategyBreakdown).length > 0 && (
+            <>
+              <h2>Strategy Breakdown</h2>
+              <div className="card">
+                <table>
+                  <thead><tr><th>Strategy</th><th>Trades</th><th>Win Rate</th><th>PF</th><th>PnL</th></tr></thead>
+                  <tbody>
+                    {Object.entries(result.strategyBreakdown).map(([name, d]) => (
+                      <tr key={name}>
+                        <td>{name.replace(/_/g, " ")}</td>
+                        <td>{d.trades}</td>
+                        <td>{(d.winRate * 100).toFixed(1)}%</td>
+                        <td className={d.pf >= 1.5 ? "good" : d.pf >= 1 ? "" : "bad"}>{d.pf.toFixed(2)}</td>
+                        <td className={cls(d.pnl)}>{fmtUsd(d.pnl)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {result.walkForward && (
+            <>
+              <h2>Walk-Forward Validation (70% train / 30% test)</h2>
+              <div className="grid">
+                <WfCard label="TRAIN" stats={result.walkForward.train} />
+                <WfCard label="TEST" stats={result.walkForward.test} />
+              </div>
+            </>
+          )}
 
           <h2>Trade List ({result.trades.length})</h2>
           <div className="card" style={{ overflowX: "auto" }}>
             <table>
               <thead>
-                <tr><th>#</th><th>Entry</th><th>Exit</th><th>Dir</th><th>Type</th><th>Entry $</th><th>Exit $</th><th>Exit Type</th><th>PnL</th><th>R</th><th>Equity</th></tr>
+                <tr><th>#</th><th>Entry</th><th>Exit</th><th>Dir</th><th>Strategy</th><th>Entry $</th><th>Exit $</th><th>Exit Type</th><th>PnL</th><th>R</th><th>Equity</th></tr>
               </thead>
               <tbody>
                 {result.trades.map((t) => (
@@ -107,7 +178,7 @@ export default function BacktestLab() {
                     <td className="muted">{fmtTime(t.entryTime)}</td>
                     <td className="muted">{fmtTime(t.exitTime)}</td>
                     <td><span className={`badge ${t.direction}`}>{t.direction}</span></td>
-                    <td>{t.entryType}</td>
+                    <td className="muted">{t.entryType}</td>
                     <td>{t.entryPrice.toFixed(2)}</td>
                     <td>{t.exitPrice.toFixed(2)}</td>
                     <td>{t.exitType}</td>
@@ -134,6 +205,22 @@ function Field({ label, type, value, step, onChange }: { label: string; type: st
     <div>
       <div className="k">{label}</div>
       <input type={type} step={step} value={value} onChange={(e) => onChange(e.target.value)} style={{ width: "100%", marginTop: 4 }} />
+    </div>
+  );
+}
+
+function WfCard({ label, stats }: { label: string; stats: BacktestStatsDto }) {
+  return (
+    <div className="card">
+      <div className="k" style={{ marginBottom: 8 }}>{label}</div>
+      <div style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 3 }}>
+        <span>Trades: {stats.totalTrades}</span>
+        <span>WR: {(stats.winRate * 100).toFixed(1)}%</span>
+        <span>PF: <span className={stats.profitFactor >= 1.5 ? "good" : stats.profitFactor >= 1 ? "" : "bad"}>{stats.profitFactor.toFixed(2)}</span></span>
+        <span>Return: <span className={cls(stats.totalReturnPct)}>{stats.totalReturnPct.toFixed(2)}%</span></span>
+        <span>Max DD: <span className="bad">{stats.maxDrawdownPct.toFixed(2)}%</span></span>
+        <span>Sharpe: {(stats.sharpeRatio ?? 0).toFixed(3)}</span>
+      </div>
     </div>
   );
 }
