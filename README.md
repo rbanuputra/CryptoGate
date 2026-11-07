@@ -9,7 +9,7 @@ regime, and activates the most suitable strategies from a pool of 6.
 > The project is being rebuilt as a TypeScript monorepo per
 > `liquidx-ai-agent-prd.md`.
 
-## Status ✅ (20 tests passing)
+## Status ✅ (24 tests passing)
 
 **Increment 1 — foundation + first vertical slice:**
 - **Monorepo** — Turborepo + npm workspaces (`packages/shared`, `apps/agent`, `apps/web`)
@@ -29,9 +29,21 @@ regime, and activates the most suitable strategies from a pool of 6.
 - **Module 6 Signal Aggregator** — runs active strategies, scores/filters/dedupes/ranks;
   wired into the agent loop on each 15M close
 
-Not yet built (next increments): strategies 2–6, risk manager + position sizing,
-execution engine (live orders), journaling (Postgres), Telegram, dashboard pages 2–7.
-See the PRD's phase plan.
+**Increment 3 — more strategies (Phase 3):**
+- **Strategy 2: Momentum Breakout** — 4H key-level break on 15M with volume + ADX +
+  body confirmation, aligned with the 4H EMA trend
+- **Strategy 3: Mean Reversion** — fade Bollinger extremes with RSI + range-boundary +
+  reversal-candle + exhaustion-volume confirmation (RANGING only)
+- **Strategy 5: VWAP Bounce** — pullback-and-reject to session VWAP in the 4H trend,
+  with chop/session guards
+
+All four implemented strategies are registered in the agent loop; the aggregator now
+has a real pool to rank and multi-confirm across.
+
+Not yet built (next increments): strategies 4 & 6 (OI divergence, liquidation fade) +
+their order-flow data (Module 1B), risk manager + position sizing (Module 7),
+execution engine (Module 8, live orders), journaling (Postgres), Telegram,
+dashboard pages 2–7. See the PRD's phase plan.
 
 ## Layout
 ```

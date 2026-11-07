@@ -10,6 +10,9 @@ import type { StrategyName, Timeframe } from "@cryptogate/shared";
 import { DataFeed } from "./data/feed.js";
 import { detectRegime } from "./regime/detector.js";
 import { SmcSweepStrategy } from "./strategies/smc-strategy.js";
+import { MomentumBreakoutStrategy } from "./strategies/momentum-breakout.js";
+import { MeanReversionStrategy } from "./strategies/mean-reversion.js";
+import { VwapBounceStrategy } from "./strategies/vwap-bounce.js";
 import type { Strategy } from "./strategies/base.js";
 import { aggregate, type SignalHistoryEntry } from "./engine/aggregator.js";
 import { buildServer, type AgentStatus } from "./server/index.js";
@@ -32,8 +35,13 @@ async function main() {
   const timeframes: Timeframe[] = ["15m", "4h"];
   const feed = new DataFeed(SYMBOLS, timeframes);
 
-  // Strategy registry — only SMC Sweep implemented so far; others land next.
-  const registry = new Map<StrategyName, Strategy>([["smc_sweep", new SmcSweepStrategy()]]);
+  // Strategy registry. Strategies 4 (OI divergence) & 6 (liquidation fade) land next.
+  const registry = new Map<StrategyName, Strategy>([
+    ["smc_sweep", new SmcSweepStrategy()],
+    ["momentum_breakout", new MomentumBreakoutStrategy()],
+    ["mean_reversion", new MeanReversionStrategy()],
+    ["vwap_bounce", new VwapBounceStrategy()],
+  ]);
   const history: SignalHistoryEntry[] = [];
 
   feed.onCandleClose((symbol, tf, buf) => {
