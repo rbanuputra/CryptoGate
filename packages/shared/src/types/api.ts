@@ -77,6 +77,8 @@ export interface AgentConfigDto {
   maxDailyLossPct: number;
   maxConcurrentPositions: number;
   minRiskReward: number;
+  /** SL distance floor in ATRs (adaptive to volatility). 0 = off. */
+  minStopAtr: number;
   symbols: string[];
   strategiesEnabled: Record<StrategyName, boolean>;
 }
@@ -102,6 +104,8 @@ export interface BacktestRequestDto {
   riskPct: number;
   slippagePct: number;
   takerFeePct: number;
+  /** SL distance floor in ATRs. 0 = off, omitted = agent default. */
+  minStopAtr?: number;
   strategies?: string[] | "all";
   useRegimeSwitching?: boolean;
   walkForward?: boolean;
@@ -143,6 +147,8 @@ export interface BacktestResultDto {
   finalEquity: number;
   strategyBreakdown?: Record<string, { trades: number; winRate: number; pf: number; pnl: number }>;
   regimeLog?: Array<{ time: number; regime: string }>;
+  /** requested strategies the backtest could not run (need historical order-flow data) */
+  skippedStrategies?: string[];
   walkForward?: { train: BacktestStatsDto; test: BacktestStatsDto };
   period?: { from: number; to: number; bars: number };
 }

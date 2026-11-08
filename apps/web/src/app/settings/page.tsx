@@ -74,7 +74,12 @@ export default function Settings() {
             <Field label="Max daily loss" value={cfg.maxDailyLossPct} step="0.01" onChange={(v) => num("maxDailyLossPct", v)} />
             <Field label="Max positions" value={cfg.maxConcurrentPositions} onChange={(v) => num("maxConcurrentPositions", v)} />
             <Field label="Min R:R" value={cfg.minRiskReward} step="0.1" onChange={(v) => num("minRiskReward", v)} />
+            <Field label="Min SL distance (× ATR)" value={cfg.minStopAtr ?? 0} step="0.1" onChange={(v) => num("minStopAtr", v)} />
           </div>
+          <p className="muted" style={{ fontSize: 11, margin: "6px 0 0" }}>
+            Min SL distance: a stop tighter than this many ATRs is widened to it (TPs keep their R multiples, size shrinks
+            accordingly). Adapts to volatility instead of a fixed %. 0 = off. Applied to new signals right after Save.
+          </p>
 
           <h2>Strategy Toggles</h2>
           <div className="card">

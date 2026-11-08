@@ -3,8 +3,18 @@
  * Runs active strategies for a symbol, scores + filters + dedupes their signals,
  * and returns them ranked. The Risk Manager (next increment) consumes the top.
  */
-import type { Candle, RegimeResult, Signal, StrategyName, Timeframe } from "@cryptogate/shared";
+import {
+  atr,
+  type Candle,
+  type RegimeResult,
+  type Signal,
+  type StrategyConfigEntry,
+  type StrategyName,
+  type Timeframe,
+} from "@cryptogate/shared";
 import type { Strategy } from "../strategies/base.js";
+import { lastReal } from "../strategies/util.js";
+import { applyStopFloor, STOP_POLICY_DEFAULT, type StopPolicy } from "./stop-policy.js";
 import type { OrderFlowSnapshot } from "../data/orderflow.js";
 import { getActiveStrategies, scoreSignal, type ScoreContext } from "./selector.js";
 
@@ -38,6 +48,13 @@ export interface AggregatorInput {
   isKeyLevel?: (price: number) => boolean;
   hasCorrelatedPosition?: (symbol: string, dir: Signal["direction"]) => boolean;
   dailyLossApproaching?: boolean;
+  /** ATR-based SL floor applied to every signal before scoring. `null` disables it. */
+  stopPolicy?: StopPolicy | null;
+  /**
+   * false = ignore the regime->strategy map: every registered strategy runs with
+   * weight 1.0 and no direction policy. Default true (regime-gated).
+   */
+  regimeSwitching?: boolean;
 }
 
 export function multiStrategyConfirm(
@@ -55,7 +72,10 @@ export function multiStrategyConfirm(
 }
 
 export function aggregate(input: AggregatorInput): ScoredSignal[] {
-  const active = getActiveStrategies(input.regime.regime);
+  const switching = input.regimeSwitching !== false;
+  const active: StrategyConfigEntry[] = switching
+    ? getActiveStrategies(input.regime.regime)
+    : [...input.registry.keys()].map((strategy) => ({ strategy, weight: 1.0, direction: "both" as const }));
   const now = input.chart[input.chart.length - 1]?.openTime ?? Date.now();
 
   // 1-2. run each active strategy that is registered
@@ -75,6 +95,13 @@ export function aggregate(input: AggregatorInput): ScoredSignal[] {
     raw.push(...signals);
   }
 
+  // 2b. widen stops that are too tight for current volatility (keeps R multiples)
+  const policy = input.stopPolicy === undefined ? STOP_POLICY_DEFAULT : input.stopPolicy;
+  if (policy && raw.length > 0) {
+    const atrNow = lastReal(atr(input.chart, 14));
+    for (let i = 0; i < raw.length; i++) raw[i] = applyStopFloor(raw[i]!, atrNow, policy);
+  }
+
   // 3. score
   const scored: ScoredSignal[] = raw.map((signal) => {
     const ctx: ScoreContext = {
@@ -83,7 +110,8 @@ export function aggregate(input: AggregatorInput): ScoredSignal[] {
       hasCorrelatedPosition: input.hasCorrelatedPosition?.(signal.symbol, signal.direction) ?? false,
       dailyLossApproaching: input.dailyLossApproaching ?? false,
     };
-    return { signal, score: scoreSignal(signal, input.regime, ctx) };
+    const entry = switching ? undefined : active.find((a) => a.strategy === signal.strategy);
+    return { signal, score: scoreSignal(signal, input.regime, ctx, entry) };
   });
 
   // 4. filter

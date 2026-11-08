@@ -7,6 +7,8 @@ import { fmtUsd, fmtTime, cls } from "../../lib/format";
 import { EquityChart } from "../../components/equity-chart";
 
 const ALL_STRATEGIES = ["smc_sweep", "momentum_breakout", "mean_reversion", "oi_divergence", "vwap_bounce", "liquidation_fade"] as const;
+// Need historical OI/funding/long-short data, which the backtest doesn't have.
+const ORDERFLOW_ONLY = ["oi_divergence", "liquidation_fade"];
 
 const DEFAULTS: BacktestRequestDto = {
   symbol: "BTCUSDT",
@@ -16,6 +18,7 @@ const DEFAULTS: BacktestRequestDto = {
   riskPct: 0.02,
   slippagePct: 0.0002,
   takerFeePct: 0.0006,
+  minStopAtr: 1.5,
   strategies: "all",
   useRegimeSwitching: true,
   walkForward: false,
@@ -65,7 +68,10 @@ export default function BacktestLab() {
   return (
     <main className="wrap">
       <h1>Backtest Lab</h1>
-      <p className="muted" style={{ marginTop: 0 }}>Run all 6 strategies with regime switching on historical data. Requires outbound API access.</p>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Run the price-based strategies (4 of 6) on historical data. oi divergence and liquidation fade need historical
+        order-flow data and can only be validated in paper trading. Requires outbound API access.
+      </p>
 
       <div className="card">
         <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
@@ -95,14 +101,24 @@ export default function BacktestLab() {
           <Field label="Risk %" type="number" value={form.riskPct} step="0.005" onChange={(v) => set("riskPct", Number(v))} />
           <Field label="Slippage %" type="number" value={form.slippagePct} step="0.0001" onChange={(v) => set("slippagePct", Number(v))} />
           <Field label="Taker Fee %" type="number" value={form.takerFeePct} step="0.0001" onChange={(v) => set("takerFeePct", Number(v))} />
+          <Field label="Min SL (× ATR, 0 = off)" type="number" value={form.minStopAtr ?? 0} step="0.1" onChange={(v) => set("minStopAtr", Number(v))} />
         </div>
 
         <h3 style={{ margin: "14px 0 6px", fontSize: 13 }}>Strategies</h3>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {ALL_STRATEGIES.map((name) => (
-            <label key={name} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
-              <input type="checkbox" checked={isStratActive(name)} onChange={() => toggleStrategy(name)} />
-              {name.replace(/_/g, " ")}
+            <label
+              key={name}
+              title={ORDERFLOW_ONLY.includes(name) ? "Needs historical order-flow data — not available in backtest" : undefined}
+              style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, opacity: ORDERFLOW_ONLY.includes(name) ? 0.5 : 1 }}
+            >
+              <input
+                type="checkbox"
+                checked={!ORDERFLOW_ONLY.includes(name) && isStratActive(name)}
+                disabled={ORDERFLOW_ONLY.includes(name)}
+                onChange={() => toggleStrategy(name)}
+              />
+              {name.replace(/_/g, " ")}{ORDERFLOW_ONLY.includes(name) ? " (n/a)" : ""}
             </label>
           ))}
         </div>

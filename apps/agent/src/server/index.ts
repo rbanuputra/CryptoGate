@@ -27,6 +27,13 @@ import { fetchKlines, loadCsv } from "../backtest/data-loader.js";
 import { TF_MS } from "@cryptogate/shared";
 import { verifySocketToken } from "./socket-token.js";
 
+/** Clamp the SL-floor input to 0 (off) .. 10 ATR; fall back when missing/invalid. */
+export function sanitizeMinStopAtr(v: unknown, fallback: number): number {
+  if (v === undefined || v === null || v === "") return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(Math.max(n, 0), 10) : fallback;
+}
+
 export interface ServerDeps {
   status(): AgentStatusDto;
   trades(): TradesResponse;
@@ -127,6 +134,7 @@ export function buildServer(deps: ServerDeps): ServerHandle {
         riskPct: body.riskPct ?? MULTI_BT_DEFAULT.riskPct,
         slippagePct: body.slippagePct ?? MULTI_BT_DEFAULT.slippagePct,
         takerFeePct: body.takerFeePct ?? MULTI_BT_DEFAULT.takerFeePct,
+        minStopAtr: sanitizeMinStopAtr(body.minStopAtr, MULTI_BT_DEFAULT.minStopAtr),
         strategies: strategies as MultiBacktestConfig["strategies"],
         useRegimeSwitching: useRegime,
         htfTf,
@@ -136,7 +144,7 @@ export function buildServer(deps: ServerDeps): ServerHandle {
 
       let wf: { train: typeof result.stats; test: typeof result.stats } | undefined;
       if (doWalkForward) {
-        const split = walkForwardSplit(chart, htf, 0.7);
+        const split = walkForwardSplit(chart, htf, 0.7, TF_MS[htfTf]);
         const trainRes = backtestMulti(split.train.chart, split.train.htf, multiCfg);
         const testRes = backtestMulti(split.test.chart, split.test.htf, multiCfg);
         wf = { train: trainRes.stats, test: testRes.stats };
@@ -156,6 +164,7 @@ export function buildServer(deps: ServerDeps): ServerHandle {
         finalEquity: result.finalEquity,
         strategyBreakdown: result.strategyBreakdown,
         regimeLog: result.regimeLog,
+        skippedStrategies: result.skippedStrategies,
         walkForward: wf,
         period: chart.length ? { from: chart[0]!.openTime, to: chart[chart.length - 1]!.openTime, bars: chart.length } : undefined,
       };

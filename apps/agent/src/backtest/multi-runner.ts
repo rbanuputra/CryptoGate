@@ -7,19 +7,27 @@ import type { Candle, Timeframe, StrategyName, Signal } from "@cryptogate/shared
 import { TF_MS, computeIndicators } from "@cryptogate/shared";
 import { detectRegime } from "../regime/detector.js";
 import { aggregate, type SignalHistoryEntry } from "../engine/aggregator.js";
-import { SmcSweepStrategy } from "../strategies/smc-strategy.js";
+import { SmcSweepStrategy, PrecomputedSmcStrategy } from "../strategies/smc-strategy.js";
 import { MomentumBreakoutStrategy } from "../strategies/momentum-breakout.js";
 import { MeanReversionStrategy } from "../strategies/mean-reversion.js";
 import { VwapBounceStrategy } from "../strategies/vwap-bounce.js";
 import { OiDivergenceStrategy } from "../strategies/oi-divergence.js";
 import { LiquidationFadeStrategy } from "../strategies/liquidation-fade.js";
 import type { Strategy } from "../strategies/base.js";
+import { STOP_POLICY_DEFAULT } from "../engine/stop-policy.js";
 
 export interface MultiBacktestConfig {
   startEquity: number;
   riskPct: number;
   slippagePct: number;
   takerFeePct: number;
+  /** ATR-based SL floor (0 = off) */
+  minStopAtr: number;
+  /** TP1/TP2 as resting limit orders: maker fee, no slippage, must trade through the price */
+  tpMaker: boolean;
+  makerFeePct: number;
+  /** how far price must trade beyond a limit TP for it to count as filled */
+  makerFillBufferPct: number;
   strategies: StrategyName[] | "all";
   useRegimeSwitching: boolean;
   htfTf: Timeframe;
@@ -30,6 +38,10 @@ export const MULTI_BT_DEFAULT: MultiBacktestConfig = {
   riskPct: 0.02,
   slippagePct: 0.0002,
   takerFeePct: 0.0006,
+  minStopAtr: STOP_POLICY_DEFAULT.minStopAtr,
+  tpMaker: false,
+  makerFeePct: 0.0002,
+  makerFillBufferPct: 0.0001,
   strategies: "all",
   useRegimeSwitching: true,
   htfTf: "4h",
@@ -62,6 +74,8 @@ export interface MultiBacktestResult {
   finalEquity: number;
   regimeLog: Array<{ time: number; regime: string }>;
   strategyBreakdown: Record<string, { trades: number; winRate: number; pf: number; pnl: number }>;
+  /** requested strategies that could not run (need order-flow data) */
+  skippedStrategies: StrategyName[];
 }
 
 export interface MultiBacktestStats {
@@ -74,6 +88,13 @@ export interface MultiBacktestStats {
   sharpeRatio: number;
 }
 
+/**
+ * Strategies that need historical order-flow (OI / funding / long-short ratio).
+ * The backtest has no such series, so they would silently never fire — they are
+ * excluded and reported in `skippedStrategies` instead.
+ */
+export const ORDERFLOW_STRATEGIES: StrategyName[] = ["oi_divergence", "liquidation_fade"];
+
 function buildRegistry(strategies: StrategyName[] | "all"): Map<StrategyName, Strategy> {
   const all: [StrategyName, Strategy][] = [
     ["smc_sweep", new SmcSweepStrategy()],
@@ -83,8 +104,13 @@ function buildRegistry(strategies: StrategyName[] | "all"): Map<StrategyName, St
     ["oi_divergence", new OiDivergenceStrategy()],
     ["liquidation_fade", new LiquidationFadeStrategy()],
   ];
-  if (strategies === "all") return new Map(all);
-  return new Map(all.filter(([name]) => strategies.includes(name)));
+  const runnable = all.filter(([name]) => !ORDERFLOW_STRATEGIES.includes(name));
+  if (strategies === "all") return new Map(runnable);
+  return new Map(runnable.filter(([name]) => strategies.includes(name)));
+}
+
+function skippedFor(strategies: StrategyName[] | "all"): StrategyName[] {
+  return ORDERFLOW_STRATEGIES.filter((s) => strategies === "all" || strategies.includes(s));
 }
 
 export function backtestMulti(
@@ -93,8 +119,16 @@ export function backtestMulti(
   cfg: MultiBacktestConfig = MULTI_BT_DEFAULT,
 ): MultiBacktestResult {
   const registry = buildRegistry(cfg.strategies);
+  const skippedStrategies = skippedFor(cfg.strategies);
   const n = chart.length;
-  if (n < 100) return emptyResult(cfg.startEquity);
+  if (n < 100) return emptyResult(cfg.startEquity, skippedStrategies);
+
+  // SMC needs its full state history; a rolling 200-bar window fabricates signals (see class doc).
+  let smcPre: PrecomputedSmcStrategy | null = null;
+  if (registry.has("smc_sweep")) {
+    smcPre = new PrecomputedSmcStrategy(chart, htf, cfg.htfTf);
+    registry.set("smc_sweep", smcPre);
+  }
 
   let equity = cfg.startEquity;
   let peak = equity;
@@ -126,9 +160,8 @@ export function backtestMulti(
 
     const regime = detectRegime(htfWindow, chartSlice);
     regimeLog.push({ time: barTime, regime: regime.regime });
+    if (smcPre) smcPre.cursor = i;
 
-    // If regime switching is off, use all registered strategies regardless
-    const activeRegistry = cfg.useRegimeSwitching ? registry : registry;
     const ranked = aggregate({
       symbol: "BACKTEST",
       chart: chartSlice,
@@ -136,8 +169,10 @@ export function backtestMulti(
       htfTf: cfg.htfTf,
       regime,
       signalTtlMs: SIGNAL_TTL,
-      registry: activeRegistry,
+      registry,
+      regimeSwitching: cfg.useRegimeSwitching,
       history,
+      stopPolicy: cfg.minStopAtr > 0 ? { minStopAtr: cfg.minStopAtr } : null,
     });
 
     const top = ranked[0];
@@ -173,10 +208,11 @@ export function backtestMulti(
     finalEquity: equity,
     regimeLog,
     strategyBreakdown: computeBreakdown(trades),
+    skippedStrategies,
   };
 }
 
-function simulateTrade(
+export function simulateTrade(
   sig: Signal,
   chart: Candle[],
   signalBar: number,
@@ -206,19 +242,27 @@ function simulateTrade(
   let exitPrice = chart[n - 1]!.close;
   let exitTime = chart[n - 1]!.openTime;
 
-  const legPnl = (px: number, frac: number) => {
+  // maker = resting limit order (TP legs when cfg.tpMaker): maker fee, no slippage
+  const legPnl = (px: number, frac: number, maker = false) => {
     const u = units * frac;
     const gross = sig.direction === "long" ? (px - entry) * u : (entry - px) * u;
-    return gross - px * u * cfg.takerFeePct - entryFee * frac;
+    const fee = maker ? cfg.makerFeePct : cfg.takerFeePct;
+    return gross - px * u * fee - entryFee * frac;
   };
+  const buf = cfg.makerFillBufferPct;
 
   for (let j = entryBar; j < n; j++) {
     const bar = chart[j]!;
     const long = sig.direction === "long";
+    // A resting limit only fills if price trades THROUGH it (touching isn't enough);
+    // a market-type TP triggers on touch and pays slippage.
+    const tpReached = (p: number) =>
+      cfg.tpMaker ? (long ? bar.high >= p * (1 + buf) : bar.low <= p * (1 - buf)) : (long ? bar.high >= p : bar.low <= p);
+    const tpPx = (p: number) => (cfg.tpMaker ? p : long ? p * (1 - slip) : p * (1 + slip));
 
     if (!tp1Hit) {
       const hitSl = long ? bar.low <= sl : bar.high >= sl;
-      const hitTp1 = long ? bar.high >= tp1 : bar.low <= tp1;
+      const hitTp1 = tpReached(tp1);
       if (hitSl) {
         const px = long ? sl * (1 - slip) : sl * (1 + slip);
         realized += legPnl(px, remaining);
@@ -226,20 +270,19 @@ function simulateTrade(
         break;
       }
       if (hitTp1) {
-        const px = long ? tp1 * (1 - slip) : tp1 * (1 + slip);
-        realized += legPnl(px, 0.5);
+        const px = tpPx(tp1);
+        realized += legPnl(px, 0.5, cfg.tpMaker);
         remaining = 0.5; tp1Hit = true; sl = entry;
-        const hitTp2Same = long ? bar.high >= tp2 : bar.low <= tp2;
-        if (hitTp2Same) {
-          const px2 = long ? tp2 * (1 - slip) : tp2 * (1 + slip);
-          realized += legPnl(px2, 0.5);
+        if (tpReached(tp2)) {
+          const px2 = tpPx(tp2);
+          realized += legPnl(px2, 0.5, cfg.tpMaker);
           exitType = "TP2"; exitPrice = px2; exitTime = bar.openTime;
           break;
         }
       }
     } else {
       const hitBe = long ? bar.low <= sl : bar.high >= sl;
-      const hitTp2 = long ? bar.high >= tp2 : bar.low <= tp2;
+      const hitTp2 = tpReached(tp2);
       if (hitBe) {
         const px = long ? sl * (1 - slip) : sl * (1 + slip);
         realized += legPnl(px, remaining);
@@ -247,8 +290,8 @@ function simulateTrade(
         break;
       }
       if (hitTp2) {
-        const px = long ? tp2 * (1 - slip) : tp2 * (1 + slip);
-        realized += legPnl(px, remaining);
+        const px = tpPx(tp2);
+        realized += legPnl(px, remaining, cfg.tpMaker);
         exitType = "TP2"; exitPrice = px; exitTime = bar.openTime;
         break;
       }
@@ -272,7 +315,8 @@ function simulateTrade(
     exitTime, entryPrice: entry, exitPrice, slPrice: sig.stopLoss,
     tp1Price: tp1, tp2Price: tp2, exitType,
     pnl: Number(realized.toFixed(4)),
-    rMultiple: Number((realized / (cfg.startEquity * cfg.riskPct || 1)).toFixed(4)),
+    // R = PnL / the risk actually budgeted for THIS trade (equity at entry × riskPct)
+    rMultiple: Number((realized / (equity * cfg.riskPct || 1)).toFixed(4)),
     equityAfter: Number(eqAfter.toFixed(2)),
   };
 }
@@ -350,17 +394,20 @@ function computeBreakdown(trades: MbtTrade[]): Record<string, { trades: number; 
 export function walkForwardSplit(
   chart: Candle[], htf: Candle[],
   trainRatio: number = 0.7,
+  /** HTF candle duration in ms (default 4h) — used for the 200-bar warm-up overlap */
+  htfStepMs: number = TF_MS["4h"],
 ): { train: { chart: Candle[]; htf: Candle[] }; test: { chart: Candle[]; htf: Candle[] } } {
   const splitIdx = Math.floor(chart.length * trainRatio);
   const splitTime = chart[splitIdx]?.openTime ?? 0;
   return {
     train: { chart: chart.slice(0, splitIdx), htf: htf.filter((c) => c.openTime < splitTime) },
-    test: { chart: chart.slice(splitIdx), htf: htf.filter((c) => c.openTime >= splitTime - 200 * 4 * 60 * 60 * 1000) },
+    test: { chart: chart.slice(splitIdx), htf: htf.filter((c) => c.openTime >= splitTime - 200 * htfStepMs) },
   };
 }
 
-function emptyResult(startEquity: number): MultiBacktestResult {
+function emptyResult(startEquity: number, skippedStrategies: StrategyName[] = []): MultiBacktestResult {
   return {
+    skippedStrategies,
     trades: [], equityCurve: [{ time: 0, equity: startEquity }],
     stats: { totalTrades: 0, winRate: 0, profitFactor: 0, totalReturnPct: 0, maxDrawdownPct: 0, avgR: 0, sharpeRatio: 0 },
     startEquity, finalEquity: startEquity, regimeLog: [],

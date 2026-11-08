@@ -71,8 +71,14 @@ export interface ScoreContext {
 }
 
 /** Composite signal score used to rank competing signals (Module 5). */
-export function scoreSignal(signal: Signal, regime: RegimeResult, ctx: ScoreContext): number {
-  const cfg = getActiveStrategies(regime.regime).find((s) => s.strategy === signal.strategy);
+export function scoreSignal(
+  signal: Signal,
+  regime: RegimeResult,
+  ctx: ScoreContext,
+  /** override the regime map entry (used when regime switching is off) */
+  entry?: StrategyConfigEntry,
+): number {
+  const cfg = entry ?? getActiveStrategies(regime.regime).find((s) => s.strategy === signal.strategy);
   if (!cfg) return 0; // strategy not active in this regime
 
   let score = signal.confidence * cfg.weight * Math.max(regime.confidence, 0.01);

@@ -51,7 +51,8 @@ import {
   PaperExchangeClient,
   type ExchangeClient,
 } from "./exchange/index.js";
-import { buildServer, type ServerDeps } from "./server/index.js";
+import { buildServer, sanitizeMinStopAtr, type ServerDeps } from "./server/index.js";
+import { STOP_POLICY_DEFAULT } from "./engine/stop-policy.js";
 
 const SYMBOLS = (process.env.SYMBOLS ?? "BTCUSDT,ETHUSDT,SOLUSDT").split(",");
 const PORT = Number(process.env.AGENT_PORT ?? 4000);
@@ -147,6 +148,7 @@ async function main() {
     maxDailyLossPct: RISK_DEFAULT.circuit.maxDailyLossPct,
     maxConcurrentPositions: RISK_DEFAULT.maxConcurrentPositions,
     minRiskReward: RISK_DEFAULT.minRiskReward,
+    minStopAtr: STOP_POLICY_DEFAULT.minStopAtr,
     symbols: SYMBOLS,
     strategiesEnabled: Object.fromEntries([...registry.keys()].map((k) => [k, true])) as Record<StrategyName, boolean>,
   };
@@ -221,6 +223,7 @@ async function main() {
     getConfig: () => config,
     setConfig: (patch) => {
       Object.assign(config, patch);
+      config.minStopAtr = sanitizeMinStopAtr(config.minStopAtr, STOP_POLICY_DEFAULT.minStopAtr);
       if (patch.strategiesEnabled) config.strategiesEnabled = { ...config.strategiesEnabled, ...patch.strategiesEnabled };
       return config;
     },
@@ -285,6 +288,7 @@ async function main() {
       history,
       orderflow: orderflow.get(symbol)?.snapshot(),
       hasCorrelatedPosition: (sym, dir) => positions.openLike().some((p) => p.symbol !== sym && p.direction === dir),
+      stopPolicy: config.minStopAtr > 0 ? { minStopAtr: config.minStopAtr } : null,
     });
     if (history.length > 500) history.splice(0, history.length - 500);
 

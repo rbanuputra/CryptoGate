@@ -1,4 +1,4 @@
-import type { Signal } from "@cryptogate/shared";
+import type { Candle, Signal, Timeframe } from "@cryptogate/shared";
 import { signalId, type ScanContext, type Strategy } from "./base.js";
 import { detectSmcSignals, SMC_DEFAULT, type SmcConfig, type SmcSignal } from "./smc-sweep.js";
 
@@ -13,6 +13,42 @@ export class SmcSweepStrategy implements Strategy {
     const lastBar = ctx.chart.length - 1;
     const fresh = raw.filter((s) => s.barIndex === lastBar);
     const entryPrice = ctx.chart[lastBar]?.close ?? 0;
+    return fresh.map((s) => toSignal(s, entryPrice, ctx, this.cfg));
+  }
+}
+
+/**
+ * Backtest adapter for SMC. SMC is stateful (swept levels, cooldown, zone mitigation,
+ * market structure), so rescanning a short rolling window re-creates that state from
+ * scratch each bar and produces phantom signals: on 2y of BTC a 200-bar window gave
+ * 69 signals vs 19 for the full series, while a 1500-bar window (what the live agent's
+ * buffer holds) reproduces the full series exactly. This runs the detector ONCE over the
+ * whole series (no lookahead: it is causal per bar) and replays signals by bar index, so
+ * the backtest matches live behaviour without a 1500-bar rescan on every bar.
+ */
+export class PrecomputedSmcStrategy implements Strategy {
+  readonly name = "smc_sweep" as const;
+  /** index (into the full chart) of the bar currently being evaluated; set by the runner */
+  cursor = -1;
+  private readonly byBar = new Map<number, SmcSignal[]>();
+
+  constructor(
+    chart: Candle[],
+    htf: Candle[],
+    htfTf: Timeframe,
+    private readonly cfg: SmcConfig = SMC_DEFAULT,
+  ) {
+    for (const s of detectSmcSignals(chart, htf, htfTf, cfg)) {
+      const arr = this.byBar.get(s.barIndex) ?? [];
+      arr.push(s);
+      this.byBar.set(s.barIndex, arr);
+    }
+  }
+
+  scan(ctx: ScanContext): Signal[] {
+    const fresh = this.byBar.get(this.cursor);
+    if (!fresh) return [];
+    const entryPrice = ctx.chart[ctx.chart.length - 1]?.close ?? 0;
     return fresh.map((s) => toSignal(s, entryPrice, ctx, this.cfg));
   }
 }
